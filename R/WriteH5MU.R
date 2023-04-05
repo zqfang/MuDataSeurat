@@ -136,7 +136,9 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
         # The latter are currently loaded with the default assay set as assay.used.
         if (grepl(tolower(emb_assay), tolower(red_name)) || 
             grepl(tolower(emb_assay), tolower(red@key)) || 
-            grepl(tolower(red_name), tolower(red@key))  ) {
+            grepl(tolower(red_name), tolower(red@key))  ||
+            grepl(tolower(gsub('\\.', '', red_name)), tolower(red@key)) 
+            ) {
           modality_specific <- TRUE
         }
 
@@ -348,7 +350,9 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         # The latter are currently loaded with the default assay set as assay.used.
         if (grepl(tolower(assay_emb), tolower(red_name)) || 
             grepl(tolower(assay_emb), tolower(red@key)) || 
-            grepl(tolower(red_name), tolower(red@key))  ) {
+            grepl(tolower(red_name), tolower(red@key))  ||
+            grepl(tolower(gsub('\\.', '', red_name)), tolower(red@key)) 
+            ) {
           modality_specific <- TRUE
         }
 

@@ -1,5 +1,12 @@
 # MuDataSeurat
 
+## NOTE:
+
+**This is a fork from PMBio's [MuDataSeurat](https://github.com/PMBio/MuDataSeurat)**
+
+This fork uses a dirty trick to export the missing redcutions, such as `UMAP`, `tSNE` etc. 
+
+
 [![R-CMD-check](https://github.com/PMBio/MuDataSeurat/workflows/R-CMD-check/badge.svg)](https://github.com/PMBio/MuDataSeurat/actions) [![pkgdown](https://github.com/PMBio/MuDataSeurat/workflows/pkgdown/badge.svg)](https://github.com/PMBio/MuDataSeurat/actions)
 
 [Documentation](https://pmbio.github.io/MuDataSeurat/) | [Preprint](https://www.biorxiv.org/content/10.1101/2021.06.01.445670v1) | [Discord](https://discord.com/invite/MMsgDhnSwQ)
@@ -11,7 +18,7 @@ You can learn more about multimodal data containers in the [`mudata` documentati
 ## Installation
 
 ```R
-remotes::install_github("pmbio/MuDataSeurat")
+remotes::install_github("zqfang/MuDataSeurat")
 ```
 
 ## Quick start
