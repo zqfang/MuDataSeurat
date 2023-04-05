@@ -134,7 +134,9 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
         # This is required since Seurat does require having an existing modality
         # in assay.used, which complicates loading multimodal embeddings.
         # The latter are currently loaded with the default assay set as assay.used.
-        if (grepl(tolower(emb_assay), tolower(red_name)) || grepl(tolower(emb_assay), tolower(red@key))) {
+        if (grepl(tolower(emb_assay), tolower(red_name)) || 
+            grepl(tolower(emb_assay), tolower(red@key)) || 
+            grepl(tolower(red_name), tolower(red@key))  ) {
           modality_specific <- TRUE
         }
 
@@ -344,9 +346,12 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         # This is required since Seurat does require having an existing modality
         # in assay.used, which complicates loading multimodal embeddings.
         # The latter are currently loaded with the default assay set as assay.used.
-        if (grepl(tolower(assay_emb), tolower(red_name)) || grepl(tolower(assay_emb), tolower(red@key))) {
+        if (grepl(tolower(assay_emb), tolower(red_name)) || 
+            grepl(tolower(assay_emb), tolower(red@key)) || 
+            grepl(tolower(red_name), tolower(red@key))  ) {
           modality_specific <- TRUE
         }
+
 
         # Strip away modality name if the embedding starts with it
         if (assay_emb == substr(red_name, 1, length(assay_emb))) {
