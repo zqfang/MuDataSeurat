@@ -61,8 +61,8 @@ write_data_frame <- function(attr_group, attr_df) {
       codes <- as.integer(v) - 1
       codes[is.na(codes)] <- -1
       cat_attr = attr_group$create_dataset(col, codes, dtype = h5types$H5T_NATIVE_INT)
-      cat_attr$create_attr("encoding-type", 'categorical', space = H5S$new("scalar"))
-      cat_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
+      # cat_attr$create_attr("encoding-type", 'categorical', space = H5S$new("scalar"))
+      # cat_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
 
     } else {
       dtype <- NULL
@@ -71,8 +71,8 @@ write_data_frame <- function(attr_group, attr_df) {
           dtype$set_cset("UTF-8")
       }
       col_attr = attr_group$create_dataset(col, v, dtype=dtype)
-      col_attr$create_attr("encoding-type", 'array', space = H5S$new("scalar"))
-      col_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
+      # col_attr$create_attr("encoding-type", 'array', space = H5S$new("scalar"))
+      # col_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
     }
   }
   if (length(categories) > 0) {
