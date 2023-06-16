@@ -71,7 +71,8 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
       write_sparse_matrix(mx_group, xt, sparse_type)
     } else {
       # dense matrix
-      h5group$create_dataset(name, mx)
+      # h5group$create_dataset(name, mx)
+      write_dense_matrix(h5group, mx, name)
     }
   }
 
@@ -152,7 +153,9 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
         next
       }
 
-      obsm_group$create_dataset(paste0("X_", red_name), emb)
+      obsmr = obsm_group$create_dataset(paste0("X_", red_name), emb)
+      obsmr$create_attr("encoding-type", "array", space=H5S$new("scalar"))
+      obsmr$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
 
       # loadings -> .varm
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
@@ -176,7 +179,9 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
           all_loadings <- loadings
         }
 
-        varm_group$create_dataset(varm_key, t(all_loadings))
+        vark = varm_group$create_dataset(varm_key, t(all_loadings))
+        vark$create_attr("encoding-type", "array", space=H5S$new("scalar"))
+        vark$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
       }
 
       # stdev -> .uns[...]['variance']
@@ -373,7 +378,9 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         obsm <- h5[["obsm"]]
       }
 
-      obsm$create_dataset(paste0("X_", red_name), emb)
+      obsmr = obsm$create_dataset(paste0("X_", red_name), emb)
+      obsmr$create_attr("encoding-type", "array", space=H5S$new("scalar"))
+      obsmr$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
 
       # loadings -> .varm
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
@@ -410,7 +417,9 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
           all_loadings <- loadings
         }
 
-        varm$create_dataset(varm_key, t(all_loadings))
+        varmdat = varm$create_dataset(varm_key, t(all_loadings))
+        varmdat$create_attr("encoding-type", "array", space=H5S$new("scalar"))
+        varmdat$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
       }
 
       # stdev -> .uns[...]['variance']
