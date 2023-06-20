@@ -81,6 +81,8 @@ write_data_frame <- function(attr_group, attr_df) {
     dtype$set_cset("UTF-8")
     for (cat in names(categories)) {
       cat_dataset <- cats$create_dataset(cat, categories[[cat]], dtype=dtype)
+      # cat_dataset$create_attr("encoding-type", 'categorical', space = H5S$new("scalar"))
+      # cat_dataset$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
       cat_dataset$create_attr("ordered", FALSE, space = H5S$new("scalar"))
       attr_group[[cat]]$create_attr("categories",
                                     cats$create_reference(cat),
