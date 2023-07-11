@@ -140,7 +140,9 @@ write_sparse_matrix <- function(root, x, sparse_type) {
 }
 
 write_dense_matrix <- function(root, x, name) {
-  dense = root$create_dataset(name, x)
+  # transpose matrix for anndata
+  xt = Matrix::t(as.matrix(x))
+  dense = root$create_dataset(name, xt)
   #h5attr(dense, "shape") <- dim(x)
   dense$create_attr("encoding-type", "array", space=H5S$new("scalar"))
   dense$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 

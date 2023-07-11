@@ -62,16 +62,17 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   names(x) <- x_names
 
   slot_writer <- function(h5group, mx, name) {
-    sparse_type <- ifelse(class(mx) == "dgCMatrix", "csc_matrix", "csr_matrix")
     if ("i" %in% slotNames(mx)) {
+      sparse_type <- ifelse(class(mx) == "dgCMatrix", "csc_matrix", "csr_matrix")
       # sparse matrix
       if (sparse_type == "csc_matrix")
-        xt <- Matrix::t(mx)
+        xt <- Matrix::t(mx) # transpose for anndata 
       mx_group <- h5group$create_group(name)
       write_sparse_matrix(mx_group, xt, sparse_type)
     } else {
-      # dense matrix
+      # dense matrix, create a dataset
       # h5group$create_dataset(name, mx)
+      # h5group in the root. 
       write_dense_matrix(h5group, mx, name)
     }
   }
