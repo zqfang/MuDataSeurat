@@ -336,7 +336,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
   write_names(var_group, do.call(c, var_names))
 
   uns_group <- h5$create_group("uns")
-
+  uns_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+  uns_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))  
   # reductions -> .obsm
   # Reductions starting with modality name
   # that corresponds to the assay.used value
@@ -469,6 +470,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
   # graphs -> .obsp
   if ('graphs' %in% slotNames(object)) {
     obsp_group <- h5$create_group("obsp")
+    obsp$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+    obsp$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))  
     for (graph_name in names(object@graphs)) {
       graph <- object@graphs[[graph_name]]
 
