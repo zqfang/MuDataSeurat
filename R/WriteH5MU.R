@@ -79,22 +79,30 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   if (!any(vapply(x, is.null, TRUE))) {
     # 5
     layers_group <- root$create_group("layers")
+    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
     slot_writer(layers_group, x[["counts"]], "counts")
     slot_writer(layers_group, x[["data"]], "data")
     slot_writer(root, x[["scale.data"]], "X")
   } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]])) {
     # 4
     layers_group <- root$create_group("layers")
+    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
     slot_writer(layers_group, x[["counts"]], "counts")
     slot_writer(root, x[["scale.data"]], "X")
   } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]])) {
     # 3
     layers_group <- root$create_group("layers")
+    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
     slot_writer(layers_group, x[["data"]], "data")
     slot_writer(root, x[["scale.data"]], "X")
   } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")
+    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
     slot_writer(layers_group, x[["counts"]], "counts")
     slot_writer(root, x[["data"]], "X")
   } else {
@@ -103,11 +111,18 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   }
 
   uns_group <- root$create_group("uns")
+  uns_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+  uns_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
 
   # reductions -> .obsm
   if ('reductions' %in% slotNames(object)) {
     obsm_group <- root$create_group("obsm")
+    obsm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+    obsm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
     varm_group <- root$create_group("varm")
+    varm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+    varm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))  
+
     for (red_name in names(object@reductions)) {
       red <- object@reductions[[red_name]]
       emb <- t(red@cell.embeddings)
@@ -197,6 +212,8 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   # graphs -> .obsp
   if ('graphs' %in% slotNames(object)) {
     obsp_group <- root$create_group("obsp")
+    obsp_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+    obsp_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
     for (graph_name in names(object@graphs)) {
       graph <- object@graphs[[graph_name]]
       # Only write the graphs with the correct assay.used
@@ -374,6 +391,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
 
       if (!"obsm" %in% names(h5)) {
         obsm <- h5$create_group("obsm")
+        obsm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+        obsm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
       } else {
         obsm <- h5[["obsm"]]
       }
@@ -396,6 +415,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         
         if (!"varm" %in% names(h5)) {
           varm <- h5$create_group("varm")
+          varm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+          varm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
         } else {
           varm <- h5[["varm"]]
         }
@@ -428,6 +449,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
           # REMOVE: this should have been written with WriteH5ADHelper
           if (!red_name %in% names(h5[[paste0("mod/", assay_emb, "/uns")]])) {
             uns <- h5$create_group(paste0("mod/", assay_emb, "/uns/", red_name))
+            uns$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
+            uns$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
           } else {
             uns <- uns_group[[paste0("mod/", assay_emb, "/uns/", red_name)]]
           }

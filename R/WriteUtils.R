@@ -12,7 +12,7 @@ open_h5 <- function(filename) {
 
 #' @import hdf5r
 finalize_mudata <- function(h5) {
-    h5$create_attr("encoding-type", "MuData", space=H5S$new("scalar"))
+    h5$create_attr("encoding-type", "mudata", space=H5S$new("scalar"))
     h5$create_attr("encoding-version", .mudataversion, space=H5S$new("scalar"))
     h5$create_attr("encoder", .name, space=H5S$new("scalar"))
     h5$create_attr("encoder-version", .version, space=H5S$new("scalar"))
@@ -26,7 +26,7 @@ finalize_mudata <- function(h5) {
 
 #' @import hdf5r
 finalize_anndata_internal <- function(h5) {
-    h5$create_attr("encoding-type", "AnnData", space=H5S$new("scalar"))
+    h5$create_attr("encoding-type", "anndata", space=H5S$new("scalar"))
     h5$create_attr("encoding-version", .anndataversion, space=H5S$new("scalar"))
     h5$create_attr("encoder", .name, space=H5S$new("scalar"))
     h5$create_attr("encoder-version", .version, space=H5S$new("scalar"))
@@ -40,7 +40,7 @@ finalize_anndata <- function(h5, internal = FALSE) {
     filename <- h5$get_filename()
     h5$close_all()
     h5 <- file(filename, "r+b")
-    writeChar(paste0("AnnData (format-version=", .mudataversion, ";creator=", .name, ";creator-version=", .version, ")"), h5)
+    writeChar(paste0("anndata (format-version=", .mudataversion, ";creator=", .name, ";creator-version=", .version, ")"), h5)
     close(h5)
 }
 
@@ -126,7 +126,7 @@ write_sparse_matrix <- function(root, x, sparse_type) {
 
 write_dense_matrix <- function(root, x, name) {
   dense = root$create_dataset(name, x)
-  h5attr(dense, "shape") <- dim(x)
+  #h5attr(dense, "shape") <- dim(x)
   dense$create_attr("encoding-type", "array", space=H5S$new("scalar"))
   dense$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
 }
