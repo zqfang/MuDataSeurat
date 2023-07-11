@@ -55,38 +55,53 @@ write_data_frame <- function(attr_group, attr_df) {
   categories <- list()
   for (col in colnames(attr_df)) {
     v <- attr_df[[col]]
+    dtype <- NULL
     if (is.factor(v)) {
       # Write a factor
       categories[[col]] <- levels(v)
       codes <- as.integer(v) - 1
       codes[is.na(codes)] <- -1
-      cat_attr = attr_group$create_dataset(col, codes, dtype = h5types$H5T_NATIVE_INT)
-      # cat_attr$create_attr("encoding-type", 'categorical', space = H5S$new("scalar"))
-      # cat_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
-
+      ## 
+      dtype <- H5T_STRING$new(type="c", size=Inf)
+      dtype$set_cset("UTF-8")
+      ## categorical array must stored as group
+      ## must contain metadata
+      #cat_attr = attr_group$create_dataset(col, codes, dtype = h5types$H5T_NATIVE_INT)
+      cat_group = attr_group$create_group(col)
+      cat_group$create_attr("encoding-type", 'categorical', space = H5S$new("scalar"))
+      cat_group$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
+      cat_group$create_attr("ordered", FALSE, space = H5S$new("scalar"))
+      cat_codes = cat_group$create_dataset("codes", codes, dtype = h5types$H5T_NATIVE_INT)
+      cat_codes$create_attr("encoding-type", "array", space=H5S$new("scalar"))
+      cat_codes$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
+      cat_items = cat_group$create_dataset("categories", categories[[col]],dtype=dtype)
+      cat_items$create_attr("encoding-type", 'string-array', space = H5S$new("scalar"))
+      cat_items$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))  
     } else {
       dtype <- NULL
+      enc_type = "array"
       if (is.character(v)) {
           dtype <- H5T_STRING$new(type="c", size=Inf)
           dtype$set_cset("UTF-8")
+          enc_type = "string-array"
       }
       col_attr = attr_group$create_dataset(col, v, dtype=dtype)
-      # col_attr$create_attr("encoding-type", 'array', space = H5S$new("scalar"))
-      # col_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
+      col_attr$create_attr("encoding-type", enc_type, space = H5S$new("scalar"))
+      col_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
     }
   }
-  if (length(categories) > 0) {
-    cats <- attr_group$create_group("__categories")
-    dtype <- H5T_STRING$new(type="c", size=Inf)
-    dtype$set_cset("UTF-8")
-    for (cat in names(categories)) {
-      cat_dataset <- cats$create_dataset(cat, categories[[cat]], dtype=dtype)
-      cat_dataset$create_attr("ordered", FALSE, space = H5S$new("scalar"))
-      attr_group[[cat]]$create_attr("categories",
-                                    cats$create_reference(cat),
-                                    space = H5S$new("scalar"))
-    }
-  }
+  # if (length(categories) > 0) {
+  #   cats <- attr_group$create_group("__categories")
+  #   dtype <- H5T_STRING$new(type="c", size=Inf)
+  #   dtype$set_cset("UTF-8")
+  #   for (cat in names(categories)) {
+  #     cat_dataset <- cats$create_dataset(cat, categories[[cat]], dtype=dtype)
+  #     cat_dataset$create_attr("ordered", FALSE, space = H5S$new("scalar"))
+  #     attr_group[[cat]]$create_attr("categories",
+  #                                   cats$create_reference(cat),
+  #                                   space = H5S$new("scalar"))
+  #   }
+  # }
 
   # Write attributes
   attr_group$create_attr("_index", "_index", space = H5S$new("scalar"))
