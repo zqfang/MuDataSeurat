@@ -53,8 +53,10 @@ write_data_frame <- function(attr_group, attr_df) {
   attr_df <- attr_df[,c("_index", attr_columns),drop=FALSE]
 
   categories <- list()
+  # varlenunicode type (hdf5-type)
   sdtype <- H5T_STRING$new(type="c", size=Inf)
   sdtype$set_cset("UTF-8")
+  # write dataframe columns
   for (col in colnames(attr_df)) {
     v <- attr_df[[col]]
     if (is.factor(v)) {
@@ -85,21 +87,14 @@ write_data_frame <- function(attr_group, attr_df) {
       col_attr = attr_group$create_dataset(col, v, dtype=dtype)
       col_attr$create_attr("encoding-type", enc_type, space = H5S$new("scalar"), dtype=sdtype)
       col_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"), dtype=sdtype)
+      # if (col == "_index")
+      # {
+      #   ## this attribute used by anndata-rs, but it's optional
+      #   # index_type: list, range, intervals
+      #   col_attr$create_attr("index_type", "list", space = H5S$new("scalar"), dtype=sdtype)
+      # }
     }
   }
-  # if (length(categories) > 0) {
-  #   cats <- attr_group$create_group("__categories")
-  #   dtype <- H5T_STRING$new(type="c", size=Inf)
-  #   dtype$set_cset("UTF-8")
-  #   for (cat in names(categories)) {
-  #     cat_dataset <- cats$create_dataset(cat, categories[[cat]], dtype=dtype)
-  #     cat_dataset$create_attr("ordered", FALSE, space = H5S$new("scalar"))
-  #     attr_group[[cat]]$create_attr("categories",
-  #                                   cats$create_reference(cat),
-  #                                   space = H5S$new("scalar"))
-  #   }
-  # }
-
   # Write attributes
   attr_group$create_attr("_index", "_index", space = H5S$new("scalar"), dtype=sdtype)
   attr_group$create_attr("encoding-type", "dataframe", space = H5S$new("scalar"), dtype=sdtype)
