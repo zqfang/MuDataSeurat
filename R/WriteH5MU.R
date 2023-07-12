@@ -398,8 +398,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
 
       if (!"obsm" %in% names(h5)) {
         obsm <- h5$create_group("obsm")
-        obsm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-        obsm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
+        obsm$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+        obsmcreate_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
       } else {
         obsm <- h5[["obsm"]]
       }
@@ -422,8 +422,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         
         if (!"varm" %in% names(h5)) {
           varm <- h5$create_group("varm")
-          varm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-          varm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
+          varm$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+          varm$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
         } else {
           varm <- h5[["varm"]]
         }
@@ -464,6 +464,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         } else {
           if (!red_name %in% names(uns_group)) {
             uns <- uns_group$create_group(red_name)
+            uns$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+            uns$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype) 
           } else {
             uns <- uns_group[[red_name]]
           }

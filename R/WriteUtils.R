@@ -57,15 +57,11 @@ write_data_frame <- function(attr_group, attr_df) {
   sdtype$set_cset("UTF-8")
   for (col in colnames(attr_df)) {
     v <- attr_df[[col]]
-    dtype <- NULL
     if (is.factor(v)) {
       # Write a factor
       categories[[col]] <- levels(v)
       codes <- as.integer(v) - 1
       codes[is.na(codes)] <- -1
-      ## 
-      dtype <- H5T_STRING$new(type="c", size=Inf)
-      dtype$set_cset("UTF-8")
       ## categorical array must stored as group
       ## must contain metadata
       #cat_attr = attr_group$create_dataset(col, codes, dtype = h5types$H5T_NATIVE_INT)
@@ -76,7 +72,7 @@ write_data_frame <- function(attr_group, attr_df) {
       cat_codes = cat_group$create_dataset("codes", codes, dtype = h5types$H5T_NATIVE_INT)
       cat_codes$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=sdtype)
       cat_codes$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=sdtype) 
-      cat_items = cat_group$create_dataset("categories", categories[[col]], dtype=dtype)
+      cat_items = cat_group$create_dataset("categories", categories[[col]], dtype=sdtype)
       cat_items$create_attr("encoding-type", 'string-array', space = H5S$new("scalar"), dtype=sdtype)
       cat_items$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"), dtype=sdtype)  
     } else {
@@ -84,6 +80,7 @@ write_data_frame <- function(attr_group, attr_df) {
       enc_type = "array"
       if (is.character(v)) {
           enc_type = "string-array"
+          dtype = stype
       }
       col_attr = attr_group$create_dataset(col, v, dtype=dtype)
       col_attr$create_attr("encoding-type", enc_type, space = H5S$new("scalar"), dtype=sdtype)
@@ -119,7 +116,7 @@ write_data_frame <- function(attr_group, attr_df) {
 write_names <- function(attr_group, attr_names) {
   stype <- H5T_STRING$new(type="c", size=Inf)
   stype$set_cset("UTF-8")
-  attr_group$create_dataset("_index", attr_names, dtype=dtype)
+  attr_group$create_dataset("_index", attr_names, dtype=stype)
 
   # Write attributes
   attr_group$create_attr("_index", "_index", space = H5S$new("scalar"), dtype=stype)
