@@ -53,6 +53,8 @@ write_data_frame <- function(attr_group, attr_df) {
   attr_df <- attr_df[,c("_index", attr_columns),drop=FALSE]
 
   categories <- list()
+  sdtype <- H5T_STRING$new(type="c", size=Inf)
+  sdtype$set_cset("UTF-8")
   for (col in colnames(attr_df)) {
     v <- attr_df[[col]]
     dtype <- NULL
@@ -68,26 +70,24 @@ write_data_frame <- function(attr_group, attr_df) {
       ## must contain metadata
       #cat_attr = attr_group$create_dataset(col, codes, dtype = h5types$H5T_NATIVE_INT)
       cat_group = attr_group$create_group(col)
-      cat_group$create_attr("encoding-type", 'categorical', space = H5S$new("scalar"))
-      cat_group$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
+      cat_group$create_attr("encoding-type", 'categorical', space = H5S$new("scalar"), dtype=sdtype)
+      cat_group$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"), dtype=sdtype)
       cat_group$create_attr("ordered", FALSE, space = H5S$new("scalar"))
       cat_codes = cat_group$create_dataset("codes", codes, dtype = h5types$H5T_NATIVE_INT)
-      cat_codes$create_attr("encoding-type", "array", space=H5S$new("scalar"))
-      cat_codes$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
-      cat_items = cat_group$create_dataset("categories", categories[[col]],dtype=dtype)
-      cat_items$create_attr("encoding-type", 'string-array', space = H5S$new("scalar"))
-      cat_items$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))  
+      cat_codes$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=sdtype)
+      cat_codes$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=sdtype) 
+      cat_items = cat_group$create_dataset("categories", categories[[col]], dtype=dtype)
+      cat_items$create_attr("encoding-type", 'string-array', space = H5S$new("scalar"), dtype=sdtype)
+      cat_items$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"), dtype=sdtype)  
     } else {
       dtype <- NULL
       enc_type = "array"
       if (is.character(v)) {
-          dtype <- H5T_STRING$new(type="c", size=Inf)
-          dtype$set_cset("UTF-8")
           enc_type = "string-array"
       }
       col_attr = attr_group$create_dataset(col, v, dtype=dtype)
-      col_attr$create_attr("encoding-type", enc_type, space = H5S$new("scalar"))
-      col_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"))
+      col_attr$create_attr("encoding-type", enc_type, space = H5S$new("scalar"), dtype=sdtype)
+      col_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"), dtype=sdtype)
     }
   }
   # if (length(categories) > 0) {
@@ -104,11 +104,11 @@ write_data_frame <- function(attr_group, attr_df) {
   # }
 
   # Write attributes
-  attr_group$create_attr("_index", "_index", space = H5S$new("scalar"))
-  attr_group$create_attr("encoding-type", "dataframe", space = H5S$new("scalar"))
-  attr_group$create_attr("encoding-version", "0.2.0", space = H5S$new("scalar"))
+  attr_group$create_attr("_index", "_index", space = H5S$new("scalar"), dtype=sdtype)
+  attr_group$create_attr("encoding-type", "dataframe", space = H5S$new("scalar"), dtype=sdtype)
+  attr_group$create_attr("encoding-version", "0.2.0", space = H5S$new("scalar"), dtype=sdtype)
   if (length(attr_columns) > 0) {
-    attr_group$create_attr("column-order", attr_columns)
+    attr_group$create_attr("column-order", attr_columns, dtype=sdtype)
   } else {
     # When there are no columns, null buffer can't be written to a file.
     attr_group$create_attr("column-order", dtype=h5types$H5T_NATIVE_DOUBLE, space=H5S$new("simple", 0, 0))
@@ -117,33 +117,37 @@ write_data_frame <- function(attr_group, attr_df) {
 
 # Only write _index (obs_names or var_names)
 write_names <- function(attr_group, attr_names) {
-  dtype <- H5T_STRING$new(type="c", size=Inf)
-  dtype$set_cset("UTF-8")
+  stype <- H5T_STRING$new(type="c", size=Inf)
+  stype$set_cset("UTF-8")
   attr_group$create_dataset("_index", attr_names, dtype=dtype)
 
   # Write attributes
-  attr_group$create_attr("_index", "_index", space = H5S$new("scalar"))
-  attr_group$create_attr("encoding-type", "dataframe", space = H5S$new("scalar"))
-  attr_group$create_attr("encoding-version", "0.2.0", space = H5S$new("scalar"))
+  attr_group$create_attr("_index", "_index", space = H5S$new("scalar"), dtype=stype)
+  attr_group$create_attr("encoding-type", "dataframe", space = H5S$new("scalar"), dtype=stype)
+  attr_group$create_attr("encoding-version", "0.2.0", space = H5S$new("scalar"), dtype=stype)
   # When there are no columns, null buffer can't be written to a file.
   attr_group$create_attr("column-order", dtype=h5types$H5T_NATIVE_DOUBLE, space=H5S$new("simple", 0, 0))
 
 }
 
 write_sparse_matrix <- function(root, x, sparse_type) {
+  stype <- H5T_STRING$new(type="c", size=Inf)
+  stype$set_cset("UTF-8")
   root$create_dataset("indices", x@i)
   root$create_dataset("indptr", x@p)
   root$create_dataset("data", x@x)
   h5attr(root, "shape") <- dim(x)
-  root$create_attr("encoding-type", sparse_type, space=H5S$new("scalar"))
-  root$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
+  root$create_attr("encoding-type", sparse_type, space=H5S$new("scalar"), dtype=stype)
+  root$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
 }
 
 write_dense_matrix <- function(root, x, name) {
+  stype <- H5T_STRING$new(type="c", size=Inf)
+  stype$set_cset("UTF-8")
   # transpose matrix for anndata
   xt = Matrix::t(as.matrix(x))
   dense = root$create_dataset(name, xt)
   #h5attr(dense, "shape") <- dim(x)
-  dense$create_attr("encoding-type", "array", space=H5S$new("scalar"))
-  dense$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
+  dense$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype )
+  dense$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
 }

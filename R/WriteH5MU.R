@@ -11,6 +11,9 @@ setGeneric("WriteH5AD", function(object, file, assay = NULL, overwrite = TRUE) s
 #' @import hdf5r methods
 #' @importFrom Matrix t
 WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
+  # set encoding 
+  stype <- H5T_STRING$new(type="c", size=Inf)
+  stype$set_cset("UTF-8")
 
   mod_object <- Seurat::GetAssay(object, assay)
 
@@ -80,30 +83,30 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   if (!any(vapply(x, is.null, TRUE))) {
     # 5
     layers_group <- root$create_group("layers")
-    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
+    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
     slot_writer(layers_group, x[["counts"]], "counts")
     slot_writer(layers_group, x[["data"]], "data")
     slot_writer(root, x[["scale.data"]], "X")
   } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]])) {
     # 4
     layers_group <- root$create_group("layers")
-    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
+    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
     slot_writer(layers_group, x[["counts"]], "counts")
     slot_writer(root, x[["scale.data"]], "X")
   } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]])) {
     # 3
     layers_group <- root$create_group("layers")
-    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
+    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
     slot_writer(layers_group, x[["data"]], "data")
     slot_writer(root, x[["scale.data"]], "X")
   } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")
-    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
+    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
     slot_writer(layers_group, x[["counts"]], "counts")
     slot_writer(root, x[["data"]], "X")
   } else {
@@ -112,17 +115,17 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   }
 
   uns_group <- root$create_group("uns")
-  uns_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-  uns_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))
+  uns_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+  uns_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
 
   # reductions -> .obsm
   if ('reductions' %in% slotNames(object)) {
     obsm_group <- root$create_group("obsm")
-    obsm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-    obsm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
+    obsm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+    obsm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
     varm_group <- root$create_group("varm")
-    varm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-    varm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))  
+    varm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+    varm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)  
 
     for (red_name in names(object@reductions)) {
       red <- object@reductions[[red_name]]
@@ -170,8 +173,8 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
       }
 
       obsmr = obsm_group$create_dataset(paste0("X_", red_name), emb)
-      obsmr$create_attr("encoding-type", "array", space=H5S$new("scalar"))
-      obsmr$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
+      obsmr$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
+      obsmr$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
 
       # loadings -> .varm
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
@@ -196,8 +199,8 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
         }
 
         vark = varm_group$create_dataset(varm_key, t(all_loadings))
-        vark$create_attr("encoding-type", "array", space=H5S$new("scalar"))
-        vark$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
+        vark$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
+        vark$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
       }
 
       # stdev -> .uns[...]['variance']
@@ -213,8 +216,8 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   # graphs -> .obsp
   if ('graphs' %in% slotNames(object)) {
     obsp_group <- root$create_group("obsp")
-    obsp_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-    obsp_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
+    obsp_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+    obsp_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
     for (graph_name in names(object@graphs)) {
       graph <- object@graphs[[graph_name]]
       # Only write the graphs with the correct assay.used
@@ -307,7 +310,9 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, overwrite 
 #' @exportMethod WriteH5MU
 setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
   h5 <- open_h5(file)
-
+  # set encoding 
+  stype <- H5T_STRING$new(type="c", size=Inf)
+  stype$set_cset("UTF-8")
   # .obs
   obs_group <- h5$create_group("obs")
   obs <- object@meta.data
@@ -337,8 +342,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
   write_names(var_group, do.call(c, var_names))
 
   uns_group <- h5$create_group("uns")
-  uns_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-  uns_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))  
+  uns_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+  uns_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)  
   # reductions -> .obsm
   # Reductions starting with modality name
   # that corresponds to the assay.used value
@@ -393,15 +398,15 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
 
       if (!"obsm" %in% names(h5)) {
         obsm <- h5$create_group("obsm")
-        obsm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-        obsm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
+        obsm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+        obsm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
       } else {
         obsm <- h5[["obsm"]]
       }
 
       obsmr = obsm$create_dataset(paste0("X_", red_name), emb)
-      obsmr$create_attr("encoding-type", "array", space=H5S$new("scalar"))
-      obsmr$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
+      obsmr$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
+      obsmr$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
 
       # loadings -> .varm
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
@@ -417,8 +422,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         
         if (!"varm" %in% names(h5)) {
           varm <- h5$create_group("varm")
-          varm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-          varm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
+          varm_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+          varm_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
         } else {
           varm <- h5[["varm"]]
         }
@@ -441,8 +446,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         }
 
         varmdat = varm$create_dataset(varm_key, t(all_loadings))
-        varmdat$create_attr("encoding-type", "array", space=H5S$new("scalar"))
-        varmdat$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar")) 
+        varmdat$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
+        varmdat$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
       }
 
       # stdev -> .uns[...]['variance']
@@ -451,8 +456,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
           # REMOVE: this should have been written with WriteH5ADHelper
           if (!red_name %in% names(h5[[paste0("mod/", assay_emb, "/uns")]])) {
             uns <- h5$create_group(paste0("mod/", assay_emb, "/uns/", red_name))
-            uns$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-            uns$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))    
+            uns$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+            uns$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
           } else {
             uns <- uns_group[[paste0("mod/", assay_emb, "/uns/", red_name)]]
           }
@@ -471,8 +476,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
   # graphs -> .obsp
   if ('graphs' %in% slotNames(object)) {
     obsp_group <- h5$create_group("obsp")
-    obsp$create_attr("encoding-type", "dict", space=H5S$new("scalar"))
-    obsp$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"))  
+    obsp$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+    obsp$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)  
     for (graph_name in names(object@graphs)) {
       graph <- object@graphs[[graph_name]]
 
