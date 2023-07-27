@@ -82,7 +82,7 @@ write_data_frame <- function(attr_group, attr_df) {
       enc_type = "array"
       if (is.character(v)) {
           enc_type = "string-array"
-          dtype = stype
+          dtype = sdtype
       }
       col_attr = attr_group$create_dataset(col, v, dtype=dtype)
       col_attr$create_attr("encoding-type", enc_type, space = H5S$new("scalar"), dtype=sdtype)
