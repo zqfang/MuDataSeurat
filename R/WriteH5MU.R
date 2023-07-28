@@ -478,8 +478,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
   # graphs -> .obsp
   if ('graphs' %in% slotNames(object)) {
     obsp_group <- h5$create_group("obsp")
-    obsp$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-    obsp$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)  
+    obsp_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
+    obsp_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)  
     for (graph_name in names(object@graphs)) {
       graph <- object@graphs[[graph_name]]
 
