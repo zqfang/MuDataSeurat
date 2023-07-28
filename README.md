@@ -11,5 +11,5 @@ Please ref to the main repo [MuDataSeurat](https://github.com/PMBio/MuDataSeurat
 ## Installation
 
 ```R
-remotes::install_github("zqfang/MuDataSeurat", ref="dev") # dev branch provides the most compatible version 
+remotes::install_github("zqfang/MuDataSeurat")
 ```
