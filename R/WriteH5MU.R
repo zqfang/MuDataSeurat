@@ -197,7 +197,7 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
         # } else {
         #   all_loadings <- loadings
         # }
-        all_loadings <- reshape_scaled_data(loadings, var)
+        all_loadings <- reshape_scaled_data(loadings, var, red_name)
 
         vark = varm_group$create_dataset(varm_key, t(all_loadings))
         vark$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)

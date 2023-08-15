@@ -145,17 +145,17 @@ write_dense_matrix <- function(root, x, name) {
 }
 
 
-reshape_scaled_data <- function(mat, var.meta) {
+reshape_scaled_data <- function(mat, var.meta, mat_name="scaled.data") {
     # If only a subset of features was used,
     # this has to be accounted for
     if (nrow(mat) < nrow(var.meta)) {
-      warning(paste0("scaled.data are computed only for a some features (HVGs).",
+      warning(paste0("data for", mat_name,"are computed only for a some features (HVGs).",
         " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
       all_mat <- matrix(
         ncol = ncol(mat),
         nrow = nrow(var.meta)
       )
-      rownames(all_mat) <- rownames(var)
+      rownames(all_mat) <- rownames(var.meta)
       all_mat[rownames(mat),] <- mat
       return(all_mat)
     } 
