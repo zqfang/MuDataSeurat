@@ -143,3 +143,24 @@ write_dense_matrix <- function(root, x, name) {
   dense$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype )
   dense$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
 }
+
+
+reshape_scaled_data <- function(mat, var.meta) {
+    # If only a subset of features was used,
+    # this has to be accounted for
+    if (nrow(mat) < nrow(var.meta)) {
+      warning(paste0("scaled.data are computed only for a some features (HVGs).",
+        " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
+      all_mat <- matrix(
+        ncol = ncol(mat),
+        nrow = nrow(var.meta)
+      )
+      rownames(all_mat) <- rownames(var)
+      all_mat[rownames(mat),] <- mat
+      return(all_mat)
+    } 
+    else 
+    {
+      return(mat)
+    }
+}

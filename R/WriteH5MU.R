@@ -87,21 +87,21 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
     layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
     slot_writer(layers_group, x[["counts"]], "counts")
     slot_writer(layers_group, x[["data"]], "data")
-    slot_writer(root, x[["scale.data"]], "X")
+    slot_writer(root, reshape_scaled_data(x[["scale.data"]], var), "X")
   } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]])) {
     # 4
     layers_group <- root$create_group("layers")
     layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
     layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
     slot_writer(layers_group, x[["counts"]], "counts")
-    slot_writer(root, x[["scale.data"]], "X")
+    slot_writer(root, reshape_scaled_data(x[["scale.data"]], var), "X")
   } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]])) {
     # 3
     layers_group <- root$create_group("layers")
     layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
     layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
     slot_writer(layers_group, x[["data"]], "data")
-    slot_writer(root, x[["scale.data"]], "X")
+    slot_writer(root, reshape_scaled_data(x[["scale.data"]], var), "X")
   } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")
@@ -185,18 +185,19 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
 
         # If only a subset of features was used,
         # this has to be accounted for
-        if (nrow(loadings) < nrow(var)) {
-          warning(paste0("Loadings for ", red_name, " are computed only for a some features.",
-            " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
-          all_loadings <- matrix(
-            ncol = ncol(loadings),
-            nrow = nrow(var)
-          )
-          rownames(all_loadings) <- rownames(var)
-          all_loadings[rownames(loadings),] <- loadings
-        } else {
-          all_loadings <- loadings
-        }
+        # if (nrow(loadings) < nrow(var)) {
+        #   warning(paste0("Loadings for ", red_name, " are computed only for a some features.",
+        #     " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
+        #   all_loadings <- matrix(
+        #     ncol = ncol(loadings),
+        #     nrow = nrow(var)
+        #   )
+        #   rownames(all_loadings) <- rownames(var)
+        #   all_loadings[rownames(loadings),] <- loadings
+        # } else {
+        #   all_loadings <- loadings
+        # }
+        all_loadings <- reshape_scaled_data(loadings, var)
 
         vark = varm_group$create_dataset(varm_key, t(all_loadings))
         vark$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
