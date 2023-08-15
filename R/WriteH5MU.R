@@ -36,7 +36,7 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   if ('var.features' %in% slotNames(mod_object)) {
     if (length(mod_object@var.features) > 0) {
       var$highly_variable <- rownames(var) %in% mod_object@var.features
-      message("Added .var['highly_variable'] with highly variable features")
+      message("Added .var['highly_variable'] with highly variable features to var.meta")
     }
   }
 
