@@ -136,8 +136,6 @@ write_sparse_matrix <- function(root, x, sparse_type) {
 write_dense_matrix <- function(root, x, name) {
   stype <- H5T_STRING$new(type="c", size=Inf)
   stype$set_cset("UTF-8")
-  # transpose matrix for anndata
-  # xt = Matrix::t(as.matrix(x))
   dense = root$create_dataset(name, x)
   #h5attr(dense, "shape") <- dim(x)
   dense$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype )
@@ -159,7 +157,6 @@ reshape_scaled_data <- function(mat, var.meta, mat_name="scaled.data") {
       rownames(all_mat) <- rownames(var.meta)
       all_mat[rownames(mat),] <- mat
     } 
-    ## transpose for anndata
-    #return(Matrix::t(all_mat))
+    ## don't transpose the dense matrix for anndata (will do the transpose implicity when writing to hdf5)
     return(all_mat)
 }
