@@ -36,7 +36,7 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   if ('var.features' %in% slotNames(mod_object)) {
     if (length(mod_object@var.features) > 0) {
       var$highly_variable <- rownames(var) %in% mod_object@var.features
-      message("Added .var['highly_variable'] with highly variable features to var.meta")
+      message(paste0(assay, " Added .var['highly_variable'] with highly variable features to var.metadata"))
     }
   }
 
@@ -355,8 +355,9 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
     for (red_name in names(object@reductions)) {
       red <- object@reductions[[red_name]]
       emb <- t(red@cell.embeddings)
-      assay_emb <- red@assay.used
+      assay_emb <- red@assay.used # assay name which reduction constructed from. 'RNA', 'ADT', 'SCT' etc.
       loadings <- red@feature.loadings
+      # reduction.name => red_name , reduction.key => red@key
 
       modality_specific <- FALSE
       # Modality-specific reductions can be identified with all their feature names

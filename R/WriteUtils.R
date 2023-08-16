@@ -157,6 +157,6 @@ reshape_scaled_data <- function(mat, var.meta, mat_name="scaled.data") {
       rownames(all_mat) <- rownames(var.meta)
       all_mat[rownames(mat),] <- mat
     } 
-    ## don't transpose the dense matrix for anndata (will do the transpose implicity when writing to hdf5)
+    ## don't transpose the dense matrix for anndata (will do the transpose implicity when using hdf5r to write)
     return(all_mat)
 }
