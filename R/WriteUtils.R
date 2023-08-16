@@ -160,5 +160,6 @@ reshape_scaled_data <- function(mat, var.meta, mat_name="scaled.data") {
       all_mat[rownames(mat),] <- mat
     } 
     ## transpose for anndata
-    return(Matrix::t(all_mat))
+    #return(Matrix::t(all_mat))
+    return(all_mat)
 }
