@@ -11,7 +11,7 @@ Authors@R:
            family = "Kats",
            role = c("aut"),
            email = "i.kats@dkfz-heidelberg.de",
-           comment = c(ORCID = "0000-0001-5220-5671"),
+           comment = c(ORCID = "0000-0001-5220-5671")),
     person(given = "Zhuoqing",
            family = "Fang",
            role = c("aut"),
