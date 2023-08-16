@@ -137,8 +137,8 @@ write_dense_matrix <- function(root, x, name) {
   stype <- H5T_STRING$new(type="c", size=Inf)
   stype$set_cset("UTF-8")
   # transpose matrix for anndata
-  xt = Matrix::t(as.matrix(x))
-  dense = root$create_dataset(name, xt)
+  # xt = Matrix::t(as.matrix(x))
+  dense = root$create_dataset(name, x)
   #h5attr(dense, "shape") <- dim(x)
   dense$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype )
   dense$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
@@ -148,6 +148,7 @@ write_dense_matrix <- function(root, x, name) {
 reshape_scaled_data <- function(mat, var.meta, mat_name="scaled.data") {
     # If only a subset of features was used,
     # this has to be accounted for
+    all_mat = mat
     if (nrow(mat) < nrow(var.meta)) {
       warning(paste0("data values for `", mat_name,"` are computed only for a some features (HVGs).",
         " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data/counts."))
@@ -157,10 +158,7 @@ reshape_scaled_data <- function(mat, var.meta, mat_name="scaled.data") {
       )
       rownames(all_mat) <- rownames(var.meta)
       all_mat[rownames(mat),] <- mat
-      return(all_mat)
     } 
-    else 
-    {
-      return(mat)
-    }
+    ## transpose for anndata
+    return(Matrix::t(all_mat))
 }
