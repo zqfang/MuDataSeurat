@@ -329,7 +329,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
   modalities <- Seurat::Assays(object)
 
   h5mod <- h5$create_group("mod")
-  h5mod$create_attr("mod-order", modalities,space = H5S$new("scalar"), dtype=stype)
+  h5mod$create_attr("mod-order", modalities)
   var_names <- lapply(modalities, function(mod) {
     mod_group <- h5$create_group(paste0("mod/", mod))
 
