@@ -56,7 +56,12 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   x <- lapply(x_names, function(x_name) {
     x <- NULL
     if (x_name %in% slotNames(mod_object)) {
+      # if (utils::packageVersion("Seurat") < 5)
+      #{
       x <- Seurat::GetAssayData(mod_object, x_name)
+      #} #else
+      # { 
+      #   x <- SeuratObject::LayerData(mod_object, layer = x_name, assay = assay) 
       if (nrow(x) == 0 || ncol(x) == 0)
         x <- NULL
     }
@@ -324,7 +329,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
   modalities <- Seurat::Assays(object)
 
   h5mod <- h5$create_group("mod")
-  h5mod$create_attr("mod-order", modalities)
+  h5mod$create_attr("mod-order", modalities,space = H5S$new("scalar"), dtype=stype)
   var_names <- lapply(modalities, function(mod) {
     mod_group <- h5$create_group(paste0("mod/", mod))
 
