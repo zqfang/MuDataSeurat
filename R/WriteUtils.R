@@ -70,7 +70,7 @@ write_data_frame <- function(attr_group, attr_df) {
       cat_group = attr_group$create_group(col)
       cat_group$create_attr("encoding-type", 'categorical', space = H5S$new("scalar"), dtype=sdtype)
       cat_group$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"), dtype=sdtype)
-      cat_group$create_attr("ordered", FALSE, space = H5S$new("scalar"), dtype= H5T_LOGICAL$new())
+      cat_group$create_attr("ordered", FALSE, space = H5S$new("scalar"), dtype= H5T_LOGICAL$new(include_NA = TRUE, id = -1))
       cat_codes = cat_group$create_dataset("codes", codes, dtype = h5types$H5T_NATIVE_INT)
       cat_codes$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=sdtype)
       cat_codes$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=sdtype) 
