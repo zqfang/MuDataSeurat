@@ -1,8 +1,8 @@
 #' @rdname WriteH5MU
-setGeneric("WriteH5MU", function(object, file, scaled.data=FALSE, overwrite = TRUE) standardGeneric("WriteH5MU"))
+setGeneric("WriteH5MU", function(object, file, scale.data=FALSE, overwrite = TRUE) standardGeneric("WriteH5MU"))
 
 #' @rdname WriteH5AD
-setGeneric("WriteH5AD", function(object, file, assay = NULL, scaled.data=FALSE, overwrite = TRUE) standardGeneric("WriteH5AD"))
+setGeneric("WriteH5AD", function(object, file, assay = NULL, scale.data=FALSE, overwrite = TRUE) standardGeneric("WriteH5AD"))
 
 #' A helper function to write a modality (an assay) to an .h5mu file
 #'
@@ -10,7 +10,7 @@ setGeneric("WriteH5AD", function(object, file, assay = NULL, scaled.data=FALSE, 
 #'
 #' @import hdf5r methods
 #' @importFrom Matrix t
-WriteH5ADHelper <- function(object, assay, root, scaled.data=FALSE, global = FALSE) {
+WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, global = FALSE) {
   stype <- H5T_STRING$new(type="c", size=Inf)
   stype$set_cset("UTF-8")
 
@@ -49,7 +49,7 @@ WriteH5ADHelper <- function(object, assay, root, scaled.data=FALSE, global = FAL
   #   5. counts & data & scale.data -> layers['counts'], layers['data'], X
   
   x_names <- list("counts", "data")
-  if (scale.data) x_names <- list("counts", "data")
+  if (scale.data) x_names <- list("counts", "data", "scale.data")
 
   x <- lapply(x_names, function(x_name) {
     x <- NULL
@@ -249,7 +249,7 @@ WriteH5ADHelper <- function(object, assay, root, scaled.data=FALSE, global = FAL
 #' @import hdf5r
 #'
 #' @exportMethod WriteH5AD
-setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scaled.data=FALSE, overwrite = TRUE) {
+setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data=FALSE, overwrite = TRUE) {
   if (isFALSE(overwrite) && file.exists(file)) {
     stop(paste0("File ", file, " already exists. Use `overwrite = TRUE` to overwrite it or choose a different file name."))
   }
@@ -273,7 +273,7 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scaled.dat
   }
 
   # "Global" attributes such as metadata have to be written
-  WriteH5ADHelper(object, assay, h5, scaled.data, global = TRUE)
+  WriteH5ADHelper(object, assay, h5, scale.data, global = TRUE)
 
   finalize_anndata(h5)
 
@@ -296,7 +296,7 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scaled.dat
 #' @import hdf5r methods
 #'
 #' @exportMethod WriteH5MU
-setMethod("WriteH5MU", "Seurat", function(object, file, scaled.data, overwrite) {
+setMethod("WriteH5MU", "Seurat", function(object, file, scale.data, overwrite) {
   h5 <- open_h5(file)
   # set encoding 
   stype <- H5T_STRING$new(type="c", size=Inf)
@@ -313,7 +313,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scaled.data, overwrite) 
   var_names <- lapply(modalities, function(mod) {
     mod_group <- h5$create_group(paste0("mod/", mod))
 
-    WriteH5ADHelper(object, mod, mod_group, scaled.data)
+    WriteH5ADHelper(object, mod, mod_group, scale.data)
 
     mod_object <- object[[mod]]
     rownames(mod_object)
