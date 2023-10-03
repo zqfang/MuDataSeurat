@@ -157,35 +157,18 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, global = FALS
 
         # If only a subset of features was used,
         # this has to be accounted for
-        # if (nrow(loadings) < nrow(var)) {
-        #   warning(paste0("Loadings for ", red_name, " are computed only for a some features.",
-        #     " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
-        #   all_loadings <- matrix(
-        #     ncol = ncol(loadings),
-        #     nrow = nrow(var)
-        #   )
-        #   rownames(all_loadings) <- rownames(var)
-        #   all_loadings[rownames(loadings),] <- loadings
-        # } else {
-        #   all_loadings <- loadings
-        # }
-        all_loadings <- reshape_scaled_data(loadings, var, red_name)
-
-        # vark = varm_group$create_dataset(varm_key, t(all_loadings))
-        # vark$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
-        # vark$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
-        # if (nrow(loadings) < nrow(var)) {
-        #   warning(paste0("Loadings for ", red_name, " are computed only for a some features.",
-        #     " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
-        #   all_loadings <- matrix(
-        #     ncol = ncol(loadings),
-        #     nrow = nrow(var)
-        #   )
-        #   rownames(all_loadings) <- rownames(var)
-        #   all_loadings[rownames(loadings),] <- loadings
-        # } else {
-        #   all_loadings <- loadings
-        # }
+        if (nrow(loadings) < nrow(var)) {
+          warning(paste0("Loadings for ", red_name, " are computed only for a some features.",
+            " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
+          all_loadings <- matrix(
+            ncol = ncol(loadings),
+            nrow = nrow(var)
+          )
+          rownames(all_loadings) <- rownames(var)
+          all_loadings[rownames(loadings),] <- loadings
+        } else {
+          all_loadings <- loadings
+        }
 
         write_matrix(varm_group, varm_key, t(all_loadings))
       }
