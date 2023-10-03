@@ -44,66 +44,102 @@ finalize_anndata <- function(h5, internal = FALSE) {
     close(h5)
 }
 
-
-write_data_frame <- function(attr_group, attr_df) {
-  attr_columns <- colnames(attr_df)
-
-  attr_df["_index"] <- rownames(attr_df)
-
-  attr_df <- attr_df[,c("_index", attr_columns),drop=FALSE]
-
-  categories <- list()
-  # varlenunicode type (hdf5-type)
-  sdtype <- H5T_STRING$new(type="c", size=Inf)
-  sdtype$set_cset("UTF-8")
-  # write dataframe columns
-  for (col in colnames(attr_df)) {
-    v <- attr_df[[col]]
-    if (is.factor(v)) {
-      # Write a factor
-      categories[[col]] <- levels(v)
-      codes <- as.integer(v) - 1
-      codes[is.na(codes)] <- -1
-      ## categorical array must stored as group
-      ## must contain metadata
-      #cat_attr = attr_group$create_dataset(col, codes, dtype = h5types$H5T_NATIVE_INT)
-      cat_group = attr_group$create_group(col)
-      cat_group$create_attr("encoding-type", 'categorical', space = H5S$new("scalar"), dtype=sdtype)
-      cat_group$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"), dtype=sdtype)
-      cat_group$create_attr("ordered", FALSE, space = H5S$new("scalar"))
-      cat_codes = cat_group$create_dataset("codes", codes, dtype = h5types$H5T_NATIVE_INT)
-      cat_codes$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=sdtype)
-      cat_codes$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=sdtype) 
-      cat_items = cat_group$create_dataset("categories", categories[[col]], dtype=sdtype)
-      cat_items$create_attr("encoding-type", 'string-array', space = H5S$new("scalar"), dtype=sdtype)
-      cat_items$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"), dtype=sdtype)  
-    } else {
-      dtype <- NULL
-      enc_type = "array"
-      if (is.character(v)) {
-          enc_type = "string-array"
-          dtype = sdtype
-      }
-      col_attr = attr_group$create_dataset(col, v, dtype=dtype)
-      col_attr$create_attr("encoding-type", enc_type, space = H5S$new("scalar"), dtype=sdtype)
-      col_attr$create_attr("encoding-version", '0.2.0', space = H5S$new("scalar"), dtype=sdtype)
-      # if (col == "_index")
-      # {
-      #   ## this attribute used by anndata-rs, but it's optional
-      #   # index_type: list, range, intervals
-      #   col_attr$create_attr("index_type", "list", space = H5S$new("scalar"), dtype=sdtype)
-      # }
+write_dataset <- function(parent, key, obj, scalar=FALSE) {
+    dtype <- NULL
+    space <- NULL
+    if (is.character(obj)) {
+      dtype <- H5T_STRING$new(type="c", size=Inf)
+      dtype$set_cset("UTF-8")
     }
+    if (scalar) {
+        space <- H5S$new("scalar")
+    }
+    parent$create_dataset(key, obj, dtype=dtype, space=space)
+}
+
+write_attribute <- function(obj, name, value, scalar=TRUE) {
+    dtype <- NULL
+    space <- NULL
+    if (is.character(value)) {
+      dtype <- H5T_STRING$new(type="c", size=Inf)
+      dtype$set_cset("UTF-8")
+    }
+    if (length(value) == 1 && scalar) {
+        space <- H5S$new("scalar")
+    }
+    obj$create_attr(name, value, dtype=dtype,space=space)
+}
+
+write_matrix <- function(parent, key, mat) {
+    if (is.matrix(mat) || is.vector(mat) || is.array(mat)) {
+        hasna <- anyNA(mat)
+        if (hasna && is.double(mat)) {
+            # FIXME: extend anndata spec to handle double NAs?
+            mat[is.na(mat)] <- NaN
+            hasna <- FALSE
+        }
+
+        if (!hasna) {
+            dset <- write_dataset(parent, key, mat)
+            write_attribute(dset, "encoding-type", ifelse(is.character(mat), "string-array", "array"))
+            write_attribute(dset, "encoding-version", "0.2.0")
+        } else {
+            grp <- parent$create_group(key)
+            write_matrix(grp, "values", mat)
+            write_matrix(grp, "mask", is.na(mat))
+            write_attribute(grp, "encoding-type", ifelse(is.logical(mat), "nullable-boolean", "nullable-integer"))
+            write_attribute(grp, "encoding-version", "0.1.0")
+        }
+    } else if (is.factor(mat)) {
+        grp <- parent$create_group(key)
+        codes <- as.integer(mat)
+        codes[is.na(mat)] <- 0L
+        write_matrix(grp, "codes", codes - 1L)
+        write_matrix(grp, "categories", levels(mat))
+        write_attribute(grp, "ordered", is.ordered(mat))
+        write_attribute(grp, "encoding-type", "categorical")
+        write_attribute(grp, "encoding-version", "0.2.0")
+    } else if (is(mat, "dgCMatrix") || is(mat, "dgRMatrix")) {
+        grp <- parent$create_group(key)
+        write_dataset(grp, "indptr", mat@p)
+        write_dataset(grp, "data", mat@x)
+        write_attribute(grp, "shape", rev(dim(mat)))
+        write_attribute(grp, "encoding-version", "0.1.0")
+        if (is(mat, "dgCMatrix")) {
+            write_dataset(grp, "indices", mat@i)
+            write_attribute(grp, "encoding-type", "csr_matrix")
+        } else {
+            write_dataset(grp, "indices", mat@j)
+            write_attribute(grp, "encoding-type", "csc_matrix")
+        }
+    } else {
+        stop("Writing matrices of type ", class(mat), " is not implemented.")
+    }
+}
+
+write_data_frame <- function(parent, key, attr_df) {
+  grp <- parent$create_group(key)
+  if (!is.data.frame(attr_df)) { # row names only. Creating a data.frame with duplicated row.names is not possible
+      attr_df <- data.frame("_index"=attr_df, check.names=FALSE)
+      attr_columns <- character()
+  } else {
+      attr_columns <- colnames(attr_df)
+      attr_df["_index"] <- rownames(attr_df)
   }
+
+  for (col in colnames(attr_df)) {
+      write_matrix(grp, col, attr_df[[col]])
+  }
+
   # Write attributes
-  attr_group$create_attr("_index", "_index", space = H5S$new("scalar"), dtype=sdtype)
-  attr_group$create_attr("encoding-type", "dataframe", space = H5S$new("scalar"), dtype=sdtype)
-  attr_group$create_attr("encoding-version", "0.2.0", space = H5S$new("scalar"), dtype=sdtype)
+  write_attribute(grp, "_index", "_index")
+  write_attribute(grp, "encoding-type", "dataframe")
+  write_attribute(grp, "encoding-version", "0.2.0")
   if (length(attr_columns) > 0) {
-    attr_group$create_attr("column-order", attr_columns, dtype=sdtype)
+    write_attribute(grp, "column-order", attr_columns, scalar=FALSE)
   } else {
     # When there are no columns, null buffer can't be written to a file.
-    attr_group$create_attr("column-order", dtype=h5types$H5T_NATIVE_DOUBLE, space=H5S$new("simple", 0, 0))
+    grp$create_attr("column-order", dtype=h5types$H5T_NATIVE_DOUBLE, space=H5S$new("simple", 0, 0))
   }
 }
 

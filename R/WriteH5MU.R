@@ -11,14 +11,10 @@ setGeneric("WriteH5AD", function(object, file, assay = NULL, overwrite = TRUE) s
 #' @import hdf5r methods
 #' @importFrom Matrix t
 WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
-  # set encoding 
-  stype <- H5T_STRING$new(type="c", size=Inf)
-  stype$set_cset("UTF-8")
 
   mod_object <- Seurat::GetAssay(object, assay)
 
   # .obs
-  obs_group <- root$create_group("obs")
   obs_names <- colnames(object)
   # There is no local metadata in Seurat objects
   if (global) {
@@ -26,7 +22,7 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   } else {
     obs <- data.frame(row.names = obs_names)
   }
-  write_data_frame(obs_group, obs)
+  write_data_frame(root, "obs", obs)
 
   # .var
   var <- mod_object@meta.features
@@ -40,8 +36,7 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
     }
   }
 
-  var_group <- root$create_group("var")
-  write_data_frame(var_group, var)
+  write_data_frame(root, "var", var)
 
   # .X, .layers['counts']. .raw.X
   # Assumptions:
@@ -64,55 +59,30 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
   })
   names(x) <- x_names
 
-  slot_writer <- function(h5group, mx, name) {
-    xt = mx
-    if ("i" %in% slotNames(mx)) {
-      sparse_type <- ifelse(class(mx) == "dgCMatrix", "csc_matrix", "csr_matrix")
-      # sparse matrix
-      if (sparse_type == "csc_matrix")
-        xt <- Matrix::t(mx) # transpose for anndata 
-      mx_group <- h5group$create_group(name)
-      write_sparse_matrix(mx_group, xt, sparse_type)
-    } else {
-      # dense matrix, create a dataset
-      # h5group$create_dataset(name, mx)
-      # h5group in the root. 
-      write_dense_matrix(h5group, xt, name)
-    }
-  }
-
   if (!any(vapply(x, is.null, TRUE))) {
     # 5
     layers_group <- root$create_group("layers")
-    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
-    slot_writer(layers_group, x[["counts"]], "counts")
-    slot_writer(layers_group, x[["data"]], "data")
-    slot_writer(root, reshape_scaled_data(x[["scale.data"]], var), "X")
+    write_matrix(layers_group, "counts", x[["counts"]])
+    write_matrix(layers_group, "data", x[["data"]])
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
   } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]])) {
     # 4
     layers_group <- root$create_group("layers")
-    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
-    slot_writer(layers_group, x[["counts"]], "counts")
-    slot_writer(root, reshape_scaled_data(x[["scale.data"]], var), "X")
+    write_matrix(layers_group, "counts", x[["counts"]])
+    write_matrix(root, "X",reshape_scaled_data(x[["scale.data"]], var))
   } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]])) {
     # 3
     layers_group <- root$create_group("layers")
-    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
-    slot_writer(layers_group, x[["data"]], "data")
-    slot_writer(root, reshape_scaled_data(x[["scale.data"]], var), "X")
+    write_matrix(layers_group, "data", x[["data"]])
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
   } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")
-    layers_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-    layers_group$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)
-    slot_writer(layers_group, x[["counts"]], "counts")
-    slot_writer(root, x[["data"]], "X")
+    write_matrix(layers_group, "counts", x[["counts"]])
+    write_matrix(root, "X", x[["data"]])
   } else {
     which_x <- which(!is.null(x))
-    slot_writer(root, x[[which_x]], "X")
+    write_matrix(root, "X", x[[which_x]])
   }
 
   uns_group <- root$create_group("uns")
@@ -145,7 +115,7 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
         }
       }
 
-      # Modality-specific reductions in Seurat objects 
+      # Modality-specific reductions in Seurat objects
       # can also start with modality name by the convention used in this package.
       # Multimodal reductions also have the @assay.used set because this is enforced
       # by the current Seurat package.
@@ -173,9 +143,7 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
         next
       }
 
-      obsmr = obsm_group$create_dataset(paste0("X_", red_name), emb)
-      obsmr$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
-      obsmr$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
+      write_matrix(obsm_group, paste0("X_", red_name), emb)
 
       # loadings -> .varm
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
@@ -200,16 +168,32 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
         # }
         all_loadings <- reshape_scaled_data(loadings, var, red_name)
 
-        vark = varm_group$create_dataset(varm_key, t(all_loadings))
-        vark$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
-        vark$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
+        # vark = varm_group$create_dataset(varm_key, t(all_loadings))
+        # vark$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
+        # vark$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
+        # if (nrow(loadings) < nrow(var)) {
+        #   warning(paste0("Loadings for ", red_name, " are computed only for a some features.",
+        #     " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
+        #   all_loadings <- matrix(
+        #     ncol = ncol(loadings),
+        #     nrow = nrow(var)
+        #   )
+        #   rownames(all_loadings) <- rownames(var)
+        #   all_loadings[rownames(loadings),] <- loadings
+        # } else {
+        #   all_loadings <- loadings
+        # }
+
+        write_matrix(varm_group, varm_key, t(all_loadings))
       }
 
       # stdev -> .uns[...]['variance']
       if (length(red@stdev) > 0) {
         if (!red_name %in% names(uns_group)) {
           uns_red <- uns_group$create_group(red_name)
-          uns_red$create_dataset("variance", red@stdev ** 2)
+          write_attribute(uns_red, "encoding-type", "dict")
+          write_attribute(uns_red, "encoding-version", "0.1.0")
+          write_matrix(uns_red, "variance", red@stdev^2)
         }
       }
     }
@@ -234,8 +218,7 @@ WriteH5ADHelper <- function(object, assay, root, global = FALSE) {
               graph_name <- substr(graph_name, 2, nchar(graph_name))
             }
           }
-          graph_group <- obsp_group$create_group(graph_name)
-          write_sparse_matrix(graph_group, graph, "csc_matrix")
+          write_matrix(obsp_group, graph_name, graph)
         }
       }
     }
@@ -291,7 +274,7 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, overwrite 
 
   finalize_anndata(h5)
 
-  TRUE
+  invisible(TRUE)
 })
 
 #' Create an .h5mu file with data from a \code{\link{Seurat}} object
@@ -316,10 +299,9 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
   stype <- H5T_STRING$new(type="c", size=Inf)
   stype$set_cset("UTF-8")
   # .obs
-  obs_group <- h5$create_group("obs")
   obs <- object@meta.data
 
-  write_data_frame(obs_group, obs)
+  write_data_frame(h5, "obs", obs)
 
   modalities <- Seurat::Assays(object)
 
@@ -334,14 +316,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
     rownames(mod_object)
   })
   names(var_names) <- modalities
-
-  # global .var will only contain rownames
-  # NOTE: creating a data.frame fails for objects
-  # that have the same feature name(s) across different modalities
-  # var <- data.frame(row.names = do.call(c, var_names))
-  # write_data_frame(var_group, var)
-  var_group <- h5$create_group("var")
-  write_names(var_group, do.call(c, var_names))
+  write_data_frame(h5, "var", do.call(c, var_names))
 
   uns_group <- h5$create_group("uns")
   uns_group$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
@@ -370,7 +345,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         }
       }
 
-      # Modality-specific reductions in Seurat objects 
+      # Modality-specific reductions in Seurat objects
       # can also start with modality name by the convention used in this package.
       # Multimodal reductions also have the @assay.used set because this is enforced
       # by the current Seurat package.
@@ -407,9 +382,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         obsm <- h5[["obsm"]]
       }
 
-      obsmr = obsm$create_dataset(paste0("X_", red_name), emb)
-      obsmr$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
-      obsmr$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
+      write_matrix(obsm, paste0("X_", red_name), emb)
 
       # loadings -> .varm
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
@@ -422,7 +395,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
           # this should have been written with WriteH5ADHelper
           next
         }
-        
+
         if (!"varm" %in% names(h5)) {
           varm <- h5$create_group("varm")
           varm$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
@@ -430,7 +403,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
         } else {
           varm <- h5[["varm"]]
         }
-        
+
         # If only a subset of features was used,
         # this has to be accounted for
         var_names_for_loadings <- do.call(c, var_names)
@@ -448,9 +421,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
           all_loadings <- loadings
         }
 
-        varmdat = varm$create_dataset(varm_key, t(all_loadings))
-        varmdat$create_attr("encoding-type", "array", space=H5S$new("scalar"), dtype=stype)
-        varmdat$create_attr("encoding-version", "0.2.0", space=H5S$new("scalar"), dtype=stype) 
+        write_matrix(varm, varm_key, t(all_loadings))
       }
 
       # stdev -> .uns[...]['variance']
@@ -459,21 +430,21 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
           # REMOVE: this should have been written with WriteH5ADHelper
           if (!red_name %in% names(h5[[paste0("mod/", assay_emb, "/uns")]])) {
             uns <- h5$create_group(paste0("mod/", assay_emb, "/uns/", red_name))
-            uns$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-            uns$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
+            write_attribute(uns, "encoding-type", "dict")
+            write_attribute(uns, "encoding-version", "0.1.0")
           } else {
             uns <- uns_group[[paste0("mod/", assay_emb, "/uns/", red_name)]]
           }
         } else {
           if (!red_name %in% names(uns_group)) {
             uns <- uns_group$create_group(red_name)
-            uns$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-            uns$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype) 
+            write_attribute(uns, "encoding-type", "dict")
+            write_attribute(uns, "encoding-version", "0.1.0")
           } else {
             uns <- uns_group[[red_name]]
           }
         }
-        uns$create_dataset("variance", red@stdev ** 2)
+        write_matrix(uns, "variance", red@stdev^2)
       }
     }
   }
@@ -496,13 +467,12 @@ setMethod("WriteH5MU", "Seurat", function(object, file, overwrite) {
       }
 
       if (graph_no_assay) {
-        graph_group <- obsp_group$create_group(graph_name)
-        write_sparse_matrix(graph_group, graph, "csc_matrix")
+        write_matrix(obsp_group, graph_name, graph)
       }
     }
   }
 
   finalize_mudata(h5)
 
-  TRUE
+  invisible(TRUE)
 })
