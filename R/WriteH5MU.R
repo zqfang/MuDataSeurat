@@ -362,7 +362,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data, overwrite) {
       if (!"obsm" %in% names(h5)) {
         obsm <- h5$create_group("obsm")
         obsm$create_attr("encoding-type", "dict", space=H5S$new("scalar"), dtype=stype)
-        obsmcreate_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
+        obsm$create_attr("encoding-version", "0.1.0", space=H5S$new("scalar"), dtype=stype)    
       } else {
         obsm <- h5[["obsm"]]
       }
