@@ -48,8 +48,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, global = FALS
   #   4. counts & scale.data -> layers['counts'], X
   #   5. counts & data & scale.data -> layers['counts'], layers['data'], X
   
-  x_names <- list("counts", "data")
-  if (scale.data) x_names <- list("counts", "data", "scale.data")
+  x_names <- list("counts", "data", "scale.data")
 
   x <- lapply(x_names, function(x_name) {
     x <- NULL
@@ -67,17 +66,17 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, global = FALS
     layers_group <- root$create_group("layers")
     write_matrix(layers_group, "counts", x[["counts"]])
     write_matrix(layers_group, "data", x[["data"]])
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
+    if (scale.data) write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
   } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]])) {
     # 4
     layers_group <- root$create_group("layers")
     write_matrix(layers_group, "counts", x[["counts"]])
-    write_matrix(root, "X",reshape_scaled_data(x[["scale.data"]], var))
+    if (scale.data) write_matrix(root, "X",reshape_scaled_data(x[["scale.data"]], var))
   } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]])) {
     # 3
     layers_group <- root$create_group("layers")
     write_matrix(layers_group, "data", x[["data"]])
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
+    if (scale.data) write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
   } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")

@@ -179,7 +179,7 @@ write_dense_matrix <- function(root, x, name) {
 }
 
 
-reshape_scaled_data <- function(mat, var.meta, mat_name="scaled.data") {
+reshape_scaled_data <- function(mat, var.meta, mat_name="scale.data") {
     # If only a subset of features was used,
     # this has to be accounted for
     all_mat = mat
