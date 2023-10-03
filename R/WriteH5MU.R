@@ -447,8 +447,12 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data, overwrite) {
       if (!'assay.used' %in% slotNames(graph)) {
         graph_no_assay <- TRUE
       } else {
-        if (!graph@assay.used %in% modalities)
+        if (length(graph@assay.used) < 1) {
           graph_no_assay <- TRUE
+        }
+        else if (!graph@assay.used %in% modalities) {
+          graph_no_assay <- TRUE
+        }
       }
 
       if (graph_no_assay) {
