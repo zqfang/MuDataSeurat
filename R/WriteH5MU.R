@@ -60,27 +60,36 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, global = FALS
     x
   })
   names(x) <- x_names
-  if (!scale.data) x[['scale.data']] = NULL
+  # skip scale.data
+  if (!scale.data) x[['scale.data']] <- NULL
 
-  if (!any(vapply(x, is.null, TRUE))) {
+  if ( (!any(vapply(x, is.null, TRUE))) && scale.data) {
     # 5
     layers_group <- root$create_group("layers")
+    write_attribute(layers_group, "encoding-type", "dict")
+    write_attribute(layers_group, "encoding-version", "0.1.0")
     write_matrix(layers_group, "counts", x[["counts"]])
     write_matrix(layers_group, "data", x[["data"]])
     write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
-  } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]])) {
+  } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]]) && scale.data) {
     # 4
     layers_group <- root$create_group("layers")
+    write_attribute(layers_group, "encoding-type", "dict")
+    write_attribute(layers_group, "encoding-version", "0.1.0")
     write_matrix(layers_group, "counts", x[["counts"]])
     write_matrix(root, "X",reshape_scaled_data(x[["scale.data"]], var))
-  } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]])) {
+  } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]]) && scale.data ) {
     # 3
     layers_group <- root$create_group("layers")
+    write_attribute(layers_group, "encoding-type", "dict")
+    write_attribute(layers_group, "encoding-version", "0.1.0")
     write_matrix(layers_group, "data", x[["data"]])
     write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
   } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")
+    write_attribute(layers_group, "encoding-type", "dict")
+    write_attribute(layers_group, "encoding-version", "0.1.0")
     write_matrix(layers_group, "counts", x[["counts"]])
     write_matrix(root, "X", x[["data"]])
   } else {
