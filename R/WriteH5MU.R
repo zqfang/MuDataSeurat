@@ -68,31 +68,31 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse_type="
     write_attribute(layers_group, "encoding-version", "0.1.0")
     write_matrix(layers_group, "counts", x[["counts"]], sparse_type)
     write_matrix(layers_group, "data", x[["data"]], sparse_type)
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var), sparse_type)
   } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]]) && scale.data) {
     # 4
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "counts", x[["counts"]])
-    write_matrix(root, "X",reshape_scaled_data(x[["scale.data"]], var))
+    write_matrix(layers_group, "counts", x[["counts"]], sparse_type)
+    write_matrix(root, "X",reshape_scaled_data(x[["scale.data"]], var), sparse_type)
   } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]]) && scale.data ) {
     # 3
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "data", x[["data"]])
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var))
+    write_matrix(layers_group, "data", x[["data"]], sparse_type)
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var), sparse_type)
   } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "counts", x[["counts"]])
-    write_matrix(root, "X", x[["data"]])
+    write_matrix(layers_group, "counts", x[["counts"]], sparse_type)
+    write_matrix(root, "X", x[["data"]], sparse_type)
   } else {
     which_x <- which(!is.null(x))
-    write_matrix(root, "X", x[[which_x]])
+    write_matrix(root, "X", x[[which_x]], sparse_type)
   }
 
   uns_group <- root$create_group("uns")
@@ -211,7 +211,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse_type="
               graph_name <- substr(graph_name, 2, nchar(graph_name))
             }
           }
-          write_matrix(obsp_group, graph_name, graph)
+          write_matrix(obsp_group, graph_name, graph, sparse_type)
         }
       }
     }
@@ -465,7 +465,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
       }
 
       if (graph_no_assay) {
-        write_matrix(obsp_group, graph_name, graph)
+        write_matrix(obsp_group, graph_name, graph, sparse_type)
       }
     }
   }
