@@ -70,7 +70,7 @@ write_attribute <- function(obj, name, value, scalar=TRUE) {
     obj$create_attr(name, value, dtype=dtype,space=space)
 }
 
-write_matrix <- function(parent, key, mat) {
+write_matrix <- function(parent, key, mat, storage_sparse_type="csr_matrix") {
     if (is.matrix(mat) || is.vector(mat) || is.array(mat)) {
         hasna <- anyNA(mat)
         if (hasna && is.double(mat)) {
@@ -101,16 +101,21 @@ write_matrix <- function(parent, key, mat) {
         write_attribute(grp, "encoding-version", "0.2.0")
     } else if (is(mat, "dgCMatrix") || is(mat, "dgRMatrix")) {
         grp <- parent$create_group(key)
-        write_dataset(grp, "indptr", mat@p)
-        write_dataset(grp, "data", mat@x)
+        mat0 = mat
+        ## dgCMatrix in R (column-oriented sparse), need to transpose to save as csc via hdf5r
+        if (is(mat0, "dgCMatrix") && storage_sparse_type == "csc_matrix") mat0 = Matrix::t(mat)
+        ## dgRMatrix in R (Row-oriented sparse), need to transpose to save as csc via hdf5r
+        if (is(mat0, "dgRMatrix") && storage_sparse_type == "csr_matrix") mat0 = Matrix::t(mat)
+        write_dataset(grp, "indptr", mat0@p)
+        write_dataset(grp, "data", mat0@x)
         write_attribute(grp, "shape", rev(dim(mat)))
         write_attribute(grp, "encoding-version", "0.1.0")
-        if (is(mat, "dgCMatrix")) {
-            write_dataset(grp, "indices", mat@i)
-            write_attribute(grp, "encoding-type", "csr_matrix")
+        if (is(mat0, "dgCMatrix")) {
+            write_dataset(grp, "indices", mat0@i)
+            write_attribute(grp, "encoding-type", storage_sparse_type)# "csr_matrix")
         } else {
-            write_dataset(grp, "indices", mat@j)
-            write_attribute(grp, "encoding-type", "csc_matrix")
+            write_dataset(grp, "indices", mat0@j)
+            write_attribute(grp, "encoding-type", storage_sparse_type)# "csc_matrix")
         }
     } else {
         stop("Writing matrices of type ", class(mat), " is not implemented.")
@@ -157,6 +162,26 @@ write_names <- function(attr_group, attr_names) {
   attr_group$create_attr("column-order", dtype=h5types$H5T_NATIVE_DOUBLE, space=H5S$new("simple", 0, 0))
 
 }
+
+
+
+slot_writer <- function(h5group, mx, name) {
+    xt = mx
+    if ("i" %in% slotNames(mx)) {
+      sparse_type <- ifelse(class(mx) == "dgCMatrix", "csc_matrix", "csr_matrix")
+      # sparse matrix
+      if (sparse_type == "csc_matrix")
+        xt <- Matrix::t(mx) # transpose for anndata 
+      mx_group <- h5group$create_group(name)
+      write_sparse_matrix(mx_group, xt, sparse_type)
+    } else {
+      # dense matrix, create a dataset
+      # h5group$create_dataset(name, mx)
+      # h5group in the root. 
+      write_dense_matrix(h5group, xt, name)
+    }
+  }
+
 
 write_sparse_matrix <- function(root, x, sparse_type) {
   stype <- H5T_STRING$new(type="c", size=Inf)
