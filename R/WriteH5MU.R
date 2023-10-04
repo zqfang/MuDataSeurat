@@ -60,7 +60,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, global = FALS
     x
   })
   names(x) <- x_names
-  if (scale.data) x[['scale.data']] = NULL
+  if (!scale.data) x[['scale.data']] = NULL
 
   if (!any(vapply(x, is.null, TRUE))) {
     # 5
