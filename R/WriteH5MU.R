@@ -25,17 +25,24 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
   write_data_frame(root, "obs", obs)
 
   # .var
-  var <- mod_object@meta.features
-  var_names <- rownames(mod_object@meta.features)
+  if(class(seu@assays$RNA)=="Assay5"){
+    var.features <- mod_object@meta.data$var.features
+    var.features <- var.features[!is.na(var.features)]
+    var_names <- rownames(object)
+    var <- data.frame(row.names = var_names)
+  }else{
+    # assay v4
+    var.features = mod_object@var.features
+    var <- mod_object@meta.features
+    var_names <- rownames(mod_object@meta.features)
 
-  # Define highly variable features, if any
-  if ('var.features' %in% slotNames(mod_object)) {
-    if (length(mod_object@var.features) > 0) {
-      var$highly_variable <- rownames(var) %in% mod_object@var.features
-      message(paste0(assay, " Added .var['highly_variable'] with highly variable features to var.metadata"))
-    }
   }
 
+  # Define highly variable features, if any
+  if (length(var.features) > 0) {
+    var$highly_variable <- rownames(var) %in% var.features
+    message(paste0(assay, " Added .var['highly_variable'] with highly variable features to var.metadata"))
+  }
   write_data_frame(root, "var", var)
 
   # .X, .layers['counts']. .raw.X
