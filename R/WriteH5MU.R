@@ -25,7 +25,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
   write_data_frame(root, "obs", obs)
 
   # .var
-  if(class(seu@assays$RNA)=="Assay5"){
+  if(class(mod_object)=="Assay5"){
     var.features <- mod_object@meta.data$var.features
     var.features <- var.features[!is.na(var.features)]
     var_names <- rownames(object)
