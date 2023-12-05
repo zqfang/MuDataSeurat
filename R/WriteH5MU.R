@@ -57,11 +57,17 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
 
   x <- lapply(x_names, function(x_name) {
     x <- NULL
-    if (x_name %in% slotNames(mod_object)) {
+    if (class(mod_object)=="Assay" && x_name %in% slotNames(mod_object)) {
       x <- Seurat::GetAssayData(mod_object, x_name)
       if (nrow(x) == 0 || ncol(x) == 0)
         x <- NULL
     }
+    if (class(mod_object)=="Assay5" && x_name %in% names(mod_object@layers)) {
+      x <- Seurat::GetAssayData(mod_object, layer=x_name, assay=assay)
+      if (nrow(x) == 0 || ncol(x) == 0)
+        x <- NULL
+    }
+
     x
   })
   names(x) <- x_names
