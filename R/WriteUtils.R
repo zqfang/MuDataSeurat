@@ -117,9 +117,11 @@ write_matrix <- function(parent, key, mat, storage_sparse_type="csr_matrix") {
             write_dataset(grp, "indices", mat0@j)
             write_attribute(grp, "encoding-type", storage_sparse_type)# "csc_matrix")
         }
-    } else {
-        stop("Writing matrices of type ", class(mat), " is not implemented.")
     }
+    else {
+        stop("Writing matrices of type ", class(mat), " is not implemented: ", key)
+    }
+  
 }
 
 write_data_frame <- function(parent, key, attr_df) {
@@ -133,7 +135,15 @@ write_data_frame <- function(parent, key, attr_df) {
   }
 
   for (col in colnames(attr_df)) {
-      write_matrix(grp, col, attr_df[[col]])
+      # debug: skip column with all values are NA, it's not allow 
+      if (all(is.na(attr_df[[col]])))
+      {
+        warning("Can't write obs column with all NA value, skip: ", col)
+        next
+      }
+      # debug: remove "/" in key, it's not allow 
+      col2 = gsub("/", "", col)
+      write_matrix(grp, col2, attr_df[[col]])
   }
 
   # Write attributes

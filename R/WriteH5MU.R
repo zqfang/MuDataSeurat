@@ -178,7 +178,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
         # If only a subset of features was used,
         # this has to be accounted for
         if (nrow(loadings) < nrow(var)) {
-          warning(paste0("Loadings for ", red_name, " are computed only for a some features.",
+          warning(paste0("Loadings for ", red_name, " are computed only for some features.",
             " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
           all_loadings <- matrix(
             ncol = ncol(loadings),
