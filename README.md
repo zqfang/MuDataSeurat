@@ -26,3 +26,30 @@ Please install the main branch
 ```R
 remotes::install_github("zqfang/MuDataSeurat")
 ```
+
+## Usage
+
+
+### Export to H5AD
+```R
+# MuDataSeurat only export 3 layers: count, data, scale.data
+# so, for seurat v5, join layer first, for each modality
+
+library(MuDataSeurat)
+
+DefaultAssay(seu) = "RNA"
+seu = JoinLayers(seu)
+WriteH5AD(seu, "export.h5ad",  assay="RNA", scale.data = FALSE, overwrite=TRUE)
+
+## h5mu file for multi-modality
+
+WriteH5MU(seu, "export.h5mu", overwrite=TRUE)
+```
+
+### Read H5AD to Seurat
+
+```R
+ReadH5AD()
+ReadH5MU()
+```
+You may use native support of anndata, via `anndataR::read_h5ad`
