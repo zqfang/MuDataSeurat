@@ -146,7 +146,7 @@ write_data_frame <- function(parent, key, attr_df) {
       # debug: skip column with all values are NA, it's not allow 
       if (all(is.na(attr_df[[col]])))
       {
-        warning("Can't write obs column with all NA value, skip: ", col)
+        warning("Skip meta.data column: ", col, ", because of all values are NA.")
         next
       }
       # debug: remove "/" in key, it's not allow 
