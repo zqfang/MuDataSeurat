@@ -25,25 +25,27 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
   write_data_frame(root, "obs", obs)
 
   # .var
-  if(class(mod_object)=="Assay5"){
+  if(inherits(mod_object, "Assay5")) {
     var.features <- mod_object@meta.data$var.features
     var.features <- var.features[!is.na(var.features)]
-    var_names <- rownames(object)
-    var <- data.frame(row.names = var_names)
+    var_names <- rownames(mod_object)
+    meta.features <- data.frame(row.names = var_names)
   }else{
     # assay v4
     var.features = mod_object@var.features
-    var <- mod_object@meta.features
+    meta.features <- mod_object@meta.features
     var_names <- rownames(mod_object@meta.features)
 
   }
 
   # Define highly variable features, if any
   if (length(var.features) > 0) {
-    var$highly_variable <- rownames(var) %in% var.features
-    message(paste0(assay, " Added .var['highly_variable'] with highly variable features to var.metadata"))
+    meta.features$highly_variable <- rownames(meta.features) %in% var.features
+    message(paste0(assay, " Added .var['highly_variable'] with highly variable features to meta.featuresdata"))
   }
-  write_data_frame(root, "var", var)
+  
+  
+  write_data_frame(root, "var", meta.features)
 
   # .X, .layers['counts']. .raw.X
   # Assumptions:
@@ -57,45 +59,49 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
 
   x <- lapply(x_names, function(x_name) {
     x <- NULL
-    if (class(mod_object)=="Assay" && x_name %in% slotNames(mod_object)) {
+    # assay v4
+    if (inherits(mod_object, "Assay") && x_name %in% slotNames(mod_object)) {
       x <- Seurat::GetAssayData(mod_object, x_name)
       if (nrow(x) == 0 || ncol(x) == 0)
         x <- NULL
     }
-    if (class(mod_object)=="Assay5" && x_name %in% names(mod_object@layers)) {
+    # assay v5
+    if (inherits(mod_object, "Assay5") && x_name %in% names(mod_object@layers)) {
       x <- Seurat::GetAssayData(mod_object, layer=x_name, assay=assay)
       if (nrow(x) == 0 || ncol(x) == 0)
         x <- NULL
     }
-
+    # if (x_name == 'scale.data' && (!scale.data))
+    #     x <- NULL
     x
   })
-  names(x) <- x_names
-  # skip scale.data
-  if (!scale.data) x[['scale.data']] <- NULL
+  names(x) <- unlist(x_names)
+  # skip scale.data. NOTE the syntax here to advoid shortening list 
+  if (!scale.data) x['scale.data'] <- list(NULL)
+  
 
-  if ( (!any(vapply(x, is.null, TRUE))) && scale.data) {
+  if ( (!any(vapply(x, is.null, TRUE)))) {
     # 5
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
     write_matrix(layers_group, "counts", x[["counts"]], sparse.type)
     write_matrix(layers_group, "data", x[["data"]], sparse.type)
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var), sparse.type)
-  } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]]) && scale.data) {
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type)
+  } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]])) {
     # 4
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
     write_matrix(layers_group, "counts", x[["counts"]], sparse.type)
-    write_matrix(root, "X",reshape_scaled_data(x[["scale.data"]], var), sparse.type)
-  } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]]) && scale.data ) {
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type)
+  } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]])) {
     # 3
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
     write_matrix(layers_group, "data", x[["data"]], sparse.type)
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], var), sparse.type)
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type)
   } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")
@@ -177,14 +183,14 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
 
         # If only a subset of features was used,
         # this has to be accounted for
-        if (nrow(loadings) < nrow(var)) {
+        if (nrow(loadings) < nrow(meta.features)) {
           warning(paste0("Loadings for ", red_name, " are computed only for some features.",
             " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
           all_loadings <- matrix(
             ncol = ncol(loadings),
-            nrow = nrow(var)
+            nrow = nrow(meta.features)
           )
-          rownames(all_loadings) <- rownames(var)
+          rownames(all_loadings) <- rownames(meta.features)
           all_loadings[rownames(loadings),] <- loadings
         } else {
           all_loadings <- loadings
