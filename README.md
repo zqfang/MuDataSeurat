@@ -4,9 +4,11 @@
 
 Please refer to the original repo for more details
 
-## Why
+## Why this fork ?
 
-Convert `SeuratObject` to `H5AD/H5MU` within R only.
+I find `MuDataSeurat` to be the most compatible tool for converting `SeuratObject` to `H5AD/H5MU` format. It does not require python runtime as well.  
+
+The original repository activity seems quite low, and unfortunately, the bugs have not been fixed promptly. Since I use `MuDataSeruat` quite often, I've decided to create my own fork and make my own version. I will do my best to ensure that it remains compatible with the latest pull requests from the original repository.
 
 ## New features
 
