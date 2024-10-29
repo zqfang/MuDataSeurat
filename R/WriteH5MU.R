@@ -41,7 +41,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
   # Define highly variable features, if any
   if (length(var.features) > 0) {
     meta.features$highly_variable <- rownames(meta.features) %in% var.features
-    message(paste0(assay, " Added .var['highly_variable'] with highly variable features to meta.featuresdata"))
+    message(paste0(assay, " Added .var['highly_variable'] with highly variable features to meta.features data"))
   }
   
   
