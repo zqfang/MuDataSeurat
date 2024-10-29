@@ -282,7 +282,13 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
       paste(names(object@assays), collapse = ", "),
       ".\nUse WriteH5MU() to write all the modalities."
     ))
-  } else {
+  }  
+  else if  (length(object@assays) > 1 && (match(assay, names(object@assays), nomatch = 0) > 0)) {
+    all_assays <- names(object@assays)
+    idx = match(assay, names(all_assays), nomatch = 0)
+    assay = all_assays[idx]
+  }
+  else {
     assay <- names(object@assays)[1]
   }
 
