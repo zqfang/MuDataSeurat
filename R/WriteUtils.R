@@ -142,10 +142,12 @@ write_data_frame <- function(parent, key, attr_df) {
       attr_df["_index"] <- rownames(attr_df)
   }
 
+
   for (col in colnames(attr_df)) {
       # debug: skip column with all values are NA, it's not allow 
       if (all(is.na(attr_df[[col]])))
       {
+        attr_columns <- attr_columns[attr_columns != col] # remove from column-order
         warning("Skip meta.data column: ", col, ", because of all values are NA.")
         next
       }
