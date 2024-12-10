@@ -54,7 +54,8 @@ ReadH5AD <- function(file) {
 
   # Add metadata
   meta_data_names <- rownames(srt@meta.data)
-  srt@meta.data <- cbind.data.frame(obs, srt@meta.data)
+  srt@meta.data <- cbind.data.frame(srt@meta.data, obs)
+  colnames(srt@meta.data) = make.unique(colnames(srt@meta.data))
   rownames(srt@meta.data) <- meta_data_names
 
   # Add feature metadata
@@ -226,6 +227,7 @@ ReadH5MU <- function(file) {
   for (modality in names(modalities)) {
     # Append modality metadata
     srt@meta.data <- cbind.data.frame(srt@meta.data, mod_obs[[modality]][obs_names,])
+    colnames(srt@meta.data) = make.unique(colnames(srt@meta.data))
 
     metafeatures <- srt[[modality]]@meta.features
 
