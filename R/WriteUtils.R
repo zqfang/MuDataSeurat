@@ -144,6 +144,13 @@ write_data_frame <- function(parent, key, attr_df) {
 
 
   for (col in colnames(attr_df)) {
+  
+      # Check if the column is of date type
+      if (inherits(attr_df[[col]], "Date")) {
+          message("Column ", col, " is of date type.")
+          attr_df[[col]] <- as.character(attr_df[[col]])
+      }
+
       # debug: skip column with all values are NA, it's not allow 
       if (all(is.na(attr_df[[col]])))
       {
