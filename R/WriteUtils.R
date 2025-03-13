@@ -79,7 +79,7 @@ write_matrix <- function(parent, key, mat, storage_sparse_type="csr_matrix") {
             hasna <- FALSE
         }
         
-        if (hasna && is.character((mat))) {
+        if (hasna && is.character(mat)) {
           # FIXME: anndata spec to handle character with NAs ?
           mat[is.na(mat)] <- NaN
           hasna <- FALSE
@@ -91,7 +91,7 @@ write_matrix <- function(parent, key, mat, storage_sparse_type="csr_matrix") {
             write_attribute(dset, "encoding-version", "0.2.0")
         } else {
             grp <- parent$create_group(key)
-            # if a charactor vector with NA, this will recursion will lead to stack overflow
+            # if a charactor vector with NA, this recursion will lead to stack overflow
             # fixed above
             write_matrix(grp, "values", mat)  
             write_matrix(grp, "mask", is.na(mat))
