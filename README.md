@@ -18,9 +18,17 @@ The original repository activity seems quite low, and unfortunately, the bugs ha
 4. Fixed stack overflow issue because of obs column containing NAs
    - skip columns with all NA value
    - fixed string array with NA
-4. Add two new keyword arguments to `WriteH5AD` and `WriteH5MU`: 
+5. Add two new keyword arguments to `WriteH5AD` and `WriteH5MU`: 
    - `scale.data`: whether write `scale.data` to `anndata/mudata` or not.
    - `sparse.type`: store `csc_matrix` or `csr_matrix` in `anndata/mudata`
+6. Correctness fixes
+   - `.h5mu` files are now readable by `mudata`: `obsm`, `varm`, `obsp`, `varp`,
+     `obsmap` and `varmap` are always written.
+   - Categorical (factor) columns keep their labels when a category is unused.
+   - `NA` in string columns is stored as a missing value (as `categorical`,
+     since anndata has no nullable-string encoding) instead of the text `"NaN"`.
+   - `WriteH5AD` now errors on an unknown `assay` instead of silently writing
+     a different one.
 
 
 ## Installation
@@ -56,7 +64,7 @@ WriteH5MU(seu, "export.h5mu", overwrite=TRUE)
 ### Read H5AD to Seurat
 
 ```R
-ReadH5AD()
-ReadH5MU()
+seu <- ReadH5AD("export.h5ad")
+seu <- ReadH5MU("export.h5mu")
 ```
 You may also use the native support of anndata in R: `anndataR::read_h5ad`

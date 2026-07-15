@@ -110,8 +110,12 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
     write_matrix(layers_group, "counts", x[["counts"]], sparse.type)
     write_matrix(root, "X", x[["data"]], sparse.type)
   } else {
-    which_x <- which(!is.null(x))
-    write_matrix(root, "X", x[[which_x]], sparse.type)
+    # Exactly one of counts/data/scale.data is present: write that one as X.
+    which_x <- which(!vapply(x, is.null, logical(1)))
+    if (length(which_x) == 0) {
+      stop(paste0("Assay ", assay, " has no data in counts, data or scale.data to write."))
+    }
+    write_matrix(root, "X", x[[which_x[1]]], sparse.type)
   }
 
   uns_group <- root$create_group("uns")
@@ -163,8 +167,8 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
         }
 
         # Strip away modality name if the embedding starts with it
-        if (emb_assay == substr(red_name, 1, length(emb_assay))) {
-          red_name <- substr(red_name, length(emb_assay) + 1, length(red_name))
+        if (emb_assay == substr(red_name, 1, nchar(emb_assay))) {
+          red_name <- substr(red_name, nchar(emb_assay) + 1, nchar(red_name))
         }
       }
 
@@ -275,21 +279,25 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
   # Do not default to Seurat::DefaultAssay(object)
   # as it is not explicit, is hard to reason about,
   # and does not mean anything for MuData.
-  if (length(object@assays) > 1 && is.null(assay)) {
+  if (is.null(assay)) {
+    if (length(object@assays) > 1) {
+      h5$close()
+      stop(paste0(
+        "An assay to be written has to be provided, one of: ",
+        paste(names(object@assays), collapse = ", "),
+        ".\nUse WriteH5MU() to write all the modalities."
+      ))
+    }
+    assay <- names(object@assays)[1]
+  } else if (!assay %in% names(object@assays)) {
+    # Never fall back to another assay: writing a different assay than the one
+    # that was asked for would silently produce a file with the wrong data.
     h5$close()
     stop(paste0(
-      "An assay to be written has to be provided, one of: ",
+      "Assay ", assay, " not found. Available assays: ",
       paste(names(object@assays), collapse = ", "),
-      ".\nUse WriteH5MU() to write all the modalities."
+      "."
     ))
-  }  
-  else if  (length(object@assays) > 1 && (match(assay, names(object@assays), nomatch = 0) > 0)) {
-    all_assays <- names(object@assays)
-    idx = match(assay, all_assays, nomatch = 0)
-    assay = all_assays[idx]
-  }
-  else {
-    assay <- names(object@assays)[1]
   }
 
   # "Global" attributes such as metadata have to be written
@@ -343,9 +351,27 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
   names(var_names) <- modalities
   write_data_frame(h5, "var", do.call(c, var_names))
 
+  write_mod_maps(h5, modalities, nrow(obs), var_names)
+
   uns_group <- h5$create_group("uns")
   write_attribute(uns_group, "encoding-type", "dict")
   write_attribute(uns_group, "encoding-version", "0.1.0")
+
+  # obsm/varm/obsp/varp have to exist even when empty: MuData readers expect all
+  # of them, and creating them lazily produced files that could not be opened.
+  obsm_group <- h5$create_group("obsm")
+  write_attribute(obsm_group, "encoding-type", "dict")
+  write_attribute(obsm_group, "encoding-version", "0.1.0")
+  varm_group <- h5$create_group("varm")
+  write_attribute(varm_group, "encoding-type", "dict")
+  write_attribute(varm_group, "encoding-version", "0.1.0")
+  obsp_group <- h5$create_group("obsp")
+  write_attribute(obsp_group, "encoding-type", "dict")
+  write_attribute(obsp_group, "encoding-version", "0.1.0")
+  varp_group <- h5$create_group("varp")
+  write_attribute(varp_group, "encoding-type", "dict")
+  write_attribute(varp_group, "encoding-version", "0.1.0")
+
   # reductions -> .obsm
   # Reductions starting with modality name
   # that corresponds to the assay.used value
@@ -390,8 +416,8 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
 
 
         # Strip away modality name if the embedding starts with it
-        if (assay_emb == substr(red_name, 1, length(assay_emb))) {
-          red_name <- substr(red_name, length(assay_emb) + 1, length(red_name))
+        if (assay_emb == substr(red_name, 1, nchar(assay_emb))) {
+          red_name <- substr(red_name, nchar(assay_emb) + 1, nchar(red_name))
         }
       }
 
@@ -399,34 +425,13 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
         next
       }
 
-      if (!"obsm" %in% names(h5)) {
-        obsm <- h5$create_group("obsm")
-        write_attribute(obsm, "encoding-type", "dict")
-        write_attribute(obsm, "encoding-version", "0.1.0")  
-      } else {
-        obsm <- h5[["obsm"]]
-      }
-
-      write_matrix(obsm, paste0("X_", red_name), emb)
+      write_matrix(obsm_group, paste0("X_", red_name), emb)
 
       # loadings -> .varm
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
         varm_key <- red_name
         if (paste0("X_", red_name) %in% names(OBSM2VARM)) {
           varm_key <- OBSM2VARM[[paste0("X_", red_name)]]
-        }
-
-        if (modality_specific) {
-          # this should have been written with WriteH5ADHelper
-          next
-        }
-
-        if (!"varm" %in% names(h5)) {
-          varm <- h5$create_group("varm")
-          write_attribute(varm, "encoding-type", "dict")
-          write_attribute(varm, "encoding-version", "0.1.0")   
-        } else {
-          varm <- h5[["varm"]]
         }
 
         # If only a subset of features was used,
@@ -446,28 +451,19 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
           all_loadings <- loadings
         }
 
-        write_matrix(varm, varm_key, t(all_loadings))
+        write_matrix(varm_group, varm_key, t(all_loadings))
       }
 
       # stdev -> .uns[...]['variance']
+      # Modality-specific reductions have already been written by WriteH5ADHelper
+      # and skipped above, so only multimodal reductions reach this point.
       if (length(red@stdev) > 0) {
-        if (modality_specific) {
-          # REMOVE: this should have been written with WriteH5ADHelper
-          if (!red_name %in% names(h5[[paste0("mod/", assay_emb, "/uns")]])) {
-            uns <- h5$create_group(paste0("mod/", assay_emb, "/uns/", red_name))
-            write_attribute(uns, "encoding-type", "dict")
-            write_attribute(uns, "encoding-version", "0.1.0")
-          } else {
-            uns <- uns_group[[paste0("mod/", assay_emb, "/uns/", red_name)]]
-          }
+        if (!red_name %in% names(uns_group)) {
+          uns <- uns_group$create_group(red_name)
+          write_attribute(uns, "encoding-type", "dict")
+          write_attribute(uns, "encoding-version", "0.1.0")
         } else {
-          if (!red_name %in% names(uns_group)) {
-            uns <- uns_group$create_group(red_name)
-            write_attribute(uns, "encoding-type", "dict")
-            write_attribute(uns, "encoding-version", "0.1.0")
-          } else {
-            uns <- uns_group[[red_name]]
-          }
+          uns <- uns_group[[red_name]]
         }
         write_matrix(uns, "variance", red@stdev^2)
       }
@@ -476,9 +472,6 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
 
   # graphs -> .obsp
   if ('graphs' %in% slotNames(object)) {
-    obsp_group <- h5$create_group("obsp")
-    write_attribute(obsp_group, "encoding-type", "dict")
-    write_attribute(obsp_group, "encoding-version", "0.1.0")
     for (graph_name in names(object@graphs)) {
       graph <- object@graphs[[graph_name]]
 
