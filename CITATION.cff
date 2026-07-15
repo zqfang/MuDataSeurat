@@ -1,5 +1,11 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
+message: "If you use this software, please cite the MUON paper below."
+title: "MuDataSeurat"
+abstract: "MuData serialization for Seurat: read and write .h5ad/.h5mu files from R without a Python runtime."
+version: 0.0.1.0000
+url: "https://github.com/zqfang/MuDataSeurat"
+repository-code: "https://github.com/zqfang/MuDataSeurat"
+license: GPL-3.0
 authors:
 - family-names: "Bredikhin"
   given-names: "Danila"
@@ -7,10 +13,9 @@ authors:
 - family-names: "Kats"
   given-names: "Ilia"
   orcid: "https://orcid.org/0000-0001-5220-5671"
-title: "muon"
-version: 1.0.0
-date-released: 2021-06-01
-url: "https://github.com/scverse/muon"
+- family-names: "Fang"
+  given-names: "Zhuoqing"
+  orcid: "https://orcid.org/0000-0002-7418-1313"
 preferred-citation:
   type: article
   authors:

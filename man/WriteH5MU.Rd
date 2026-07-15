@@ -5,14 +5,30 @@
 \alias{WriteH5MU,Seurat-method}
 \title{Create an .h5mu file with data from a \code{\link{Seurat}} object}
 \usage{
-WriteH5MU(object, file, overwrite = TRUE)
+WriteH5MU(
+  object,
+  file,
+  scale.data = FALSE,
+  sparse.type = "csr_matrix",
+  overwrite = TRUE
+)
 
-\S4method{WriteH5MU}{Seurat}(object, file, overwrite = TRUE)
+\S4method{WriteH5MU}{Seurat}(
+  object,
+  file,
+  scale.data = FALSE,
+  sparse.type = "csr_matrix",
+  overwrite = TRUE
+)
 }
 \arguments{
 \item{object}{\code{Seurat} object.}
 
 \item{file}{Path to the .h5mu file.}
+
+\item{scale.data}{Boolen, wether to export scale.data.}
+
+\item{sparse.type}{String, save as csr_matrix or csc_matrix.}
 
 \item{overwrite}{Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).}
 }

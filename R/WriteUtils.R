@@ -40,7 +40,7 @@ finalize_anndata <- function(h5, internal = FALSE) {
   filename <- h5$get_filename()
   h5$close_all()
   h5 <- file(filename, "r+b")
-  writeChar(paste0("anndata (format-version=", .mudataversion, ";creator=", .name, ";creator-version=", .version, ")"), h5)
+  writeChar(paste0("anndata (format-version=", .anndataversion, ";creator=", .name, ";creator-version=", .version, ")"), h5)
   close(h5)
 }
 
@@ -71,16 +71,18 @@ write_attribute <- function(obj, name, value, scalar = TRUE) {
 }
 
 write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix") {
+  # AnnData (>=0.8) has no nullable-string encoding, so a character vector with
+  # NAs is stored as categorical, where missing values are represented by the
+  # code -1. Previously NAs were coerced to the literal string "NaN", silently
+  # corrupting the data.
+  if (is.character(mat) && anyNA(mat)) {
+    return(write_matrix(parent, key, factor(mat), storage_sparse_type))
+  }
+
   if (is.matrix(mat) || is.vector(mat) || is.array(mat)) {
     hasna <- anyNA(mat)
     if (hasna && is.double(mat)) {
       # FIXME: extend anndata spec to handle double NAs?
-      mat[is.na(mat)] <- NaN
-      hasna <- FALSE
-    }
-
-    if (hasna && is.character(mat)) {
-      # FIXME: anndata spec to handle character with NAs ?
       mat[is.na(mat)] <- NaN
       hasna <- FALSE
     }
@@ -173,61 +175,32 @@ write_data_frame <- function(parent, key, attr_df) {
   }
 }
 
-# Only write _index (obs_names or var_names)
-write_names <- function(attr_group, attr_names) {
-  stype <- H5T_STRING$new(type = "c", size = Inf)
-  stype$set_cset("UTF-8")
-  attr_group$create_dataset("_index", attr_names, dtype = stype)
+# MuData records, for each modality, the 1-based index of every global
+# observation/variable within that modality (0 when it is not present).
+# Readers require /obsmap and /varmap to be present.
+write_mod_maps <- function(h5, modalities, n_obs, var_names) {
+  obsmap_group <- h5$create_group("obsmap")
+  write_attribute(obsmap_group, "encoding-type", "dict")
+  write_attribute(obsmap_group, "encoding-version", "0.1.0")
+  varmap_group <- h5$create_group("varmap")
+  write_attribute(varmap_group, "encoding-type", "dict")
+  write_attribute(varmap_group, "encoding-version", "0.1.0")
 
-  # Write attributes
-  attr_group$create_attr("_index", "_index", space = H5S$new("scalar"), dtype = stype)
-  attr_group$create_attr("encoding-type", "dataframe", space = H5S$new("scalar"), dtype = stype)
-  attr_group$create_attr("encoding-version", "0.2.0", space = H5S$new("scalar"), dtype = stype)
-  # When there are no columns, null buffer can't be written to a file.
-  attr_group$create_attr("column-order", dtype = h5types$H5T_NATIVE_DOUBLE, space = H5S$new("simple", 0, 0))
-}
+  n_var <- length(unlist(var_names, use.names = FALSE))
+  var_offset <- 0L
+  for (mod in modalities) {
+    # A Seurat object shares all of its cells across every assay.
+    write_matrix(obsmap_group, mod, seq_len(n_obs))
 
-
-
-slot_writer <- function(h5group, mx, name) {
-  xt <- mx
-  if ("i" %in% slotNames(mx)) {
-    sparse_type <- ifelse(class(mx) == "dgCMatrix", "csc_matrix", "csr_matrix")
-    # sparse matrix
-    if (sparse_type == "csc_matrix") {
-      xt <- Matrix::t(mx)
-    } # transpose for anndata
-    mx_group <- h5group$create_group(name)
-    write_sparse_matrix(mx_group, xt, sparse_type)
-  } else {
-    # dense matrix, create a dataset
-    # h5group$create_dataset(name, mx)
-    # h5group in the root.
-    write_dense_matrix(h5group, xt, name)
+    # The global var is the concatenation of the per-modality var_names,
+    # so each modality occupies one contiguous block of it.
+    n_mod_var <- length(var_names[[mod]])
+    varmap <- integer(n_var)
+    varmap[var_offset + seq_len(n_mod_var)] <- seq_len(n_mod_var)
+    write_matrix(varmap_group, mod, varmap)
+    var_offset <- var_offset + n_mod_var
   }
 }
-
-
-write_sparse_matrix <- function(root, x, sparse_type) {
-  stype <- H5T_STRING$new(type = "c", size = Inf)
-  stype$set_cset("UTF-8")
-  root$create_dataset("indices", x@i)
-  root$create_dataset("indptr", x@p)
-  root$create_dataset("data", x@x)
-  h5attr(root, "shape") <- dim(x)
-  root$create_attr("encoding-type", sparse_type, space = H5S$new("scalar"), dtype = stype)
-  root$create_attr("encoding-version", "0.1.0", space = H5S$new("scalar"), dtype = stype)
-}
-
-write_dense_matrix <- function(root, x, name) {
-  stype <- H5T_STRING$new(type = "c", size = Inf)
-  stype$set_cset("UTF-8")
-  dense <- root$create_dataset(name, x)
-  # h5attr(dense, "shape") <- dim(x)
-  dense$create_attr("encoding-type", "array", space = H5S$new("scalar"), dtype = stype)
-  dense$create_attr("encoding-version", "0.2.0", space = H5S$new("scalar"), dtype = stype)
-}
-
 
 reshape_scaled_data <- function(mat, var.meta, mat_name = "scale.data") {
   # If only a subset of features was used,

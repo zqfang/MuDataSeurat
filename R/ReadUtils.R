@@ -51,10 +51,7 @@ read_table_encv1 <- function(dataset, set_index = TRUE) {
         # Make factors out of categorical data
         ref <- values_attr$categories
         values_labels <- ref$dereference(obj = NULL)[[1]]
-        # NOTE: number of labels have to be strictly matching the number of unique integer values.
-        values_notna <- unique(values)
-        values_notna <- values_notna[!is.na(values_notna)]
-        values <- factor(as.integer(values), labels = values_labels$read()[1:length(values_notna)])
+        values <- decode_categorical(as.integer(values), values_labels$read())
       }
     }
     values
@@ -64,20 +61,26 @@ read_table_encv1 <- function(dataset, set_index = TRUE) {
   table
 }
 
+# Reconstruct a factor from AnnData categorical storage.
+# Codes are 0-based indices into `categories`; a negative code denotes NA.
+# The full category list is kept as the factor levels, so categories that are
+# not used by any observation are preserved rather than shifting the labels of
+# the categories that are used.
+decode_categorical <- function(codes, categories) {
+  codes <- as.integer(codes)
+  codes[!is.na(codes) & (codes < 0L | codes >= length(categories))] <- NA
+  factor(categories[codes + 1L], levels = categories)
+}
+
 read_column <- function(column, etype, eversion) {
   values <- NULL
   if (etype == "categorical") {
     if (eversion == "0.2.0") {
       codes <- column[["codes"]]$read()
       categories <- column[["categories"]]$read()
-
-      # NOTE: number of labels have to be strictly matching the number of unique integer values.
-      codes_notna <- unique(codes)
-      codes_notna <- codes_notna[!is.na(codes_notna)]
-
-      values <- factor(as.integer(codes), labels = categories[1:length(codes_notna)])
+      values <- decode_categorical(codes, categories)
     } else {
-      warning(paste0("Cannot recognise encoving-version ", eversion))
+      warning(paste0("Cannot recognise encoding-version ", eversion))
     }
   } else {
     values <- column$read()
@@ -213,9 +216,9 @@ read_layers_to_assay <- function(root, modalityname="") {
   }
 
   obs <- read_table(root[['obs']])
-  if (is("obs", "data.frame"))
-    rownames(obs) <- paste(modalityname, rownames(obs), sep="-")
-
+  # NOTE: obs names must NOT be prefixed with the modality name here.
+  # ReadH5MU takes the intersection of obs names across modalities to build a
+  # single Seurat object, so per-modality prefixes would make it empty.
   colnames(X) <- rownames(obs)
   rownames(X) <- rownames(var)
 

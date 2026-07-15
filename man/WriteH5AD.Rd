@@ -5,9 +5,23 @@
 \alias{WriteH5AD,Seurat-method}
 \title{Write one assay to .h5ad}
 \usage{
-WriteH5AD(object, file, assay = NULL, overwrite = TRUE)
+WriteH5AD(
+  object,
+  file,
+  assay = NULL,
+  scale.data = FALSE,
+  sparse.type = "csr_matrix",
+  overwrite = TRUE
+)
 
-\S4method{WriteH5AD}{Seurat}(object, file, assay = NULL, overwrite = TRUE)
+\S4method{WriteH5AD}{Seurat}(
+  object,
+  file,
+  assay = NULL,
+  scale.data = FALSE,
+  sparse.type = "csr_matrix",
+  overwrite = TRUE
+)
 }
 \arguments{
 \item{object}{\code{Seurat} object.}
@@ -15,6 +29,10 @@ WriteH5AD(object, file, assay = NULL, overwrite = TRUE)
 \item{file}{Path to the .h5ad file.}
 
 \item{assay}{Assay to write; can be omitted if there is a single assay in the object.}
+
+\item{scale.data}{Boolen, wether to export scale.data.}
+
+\item{sparse.type}{String, save as csr_matrix or csc_matrix.}
 
 \item{overwrite}{Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).}
 }

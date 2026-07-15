@@ -219,7 +219,8 @@ ReadH5MU <- function(file) {
 
   # Create a Seurat object
   srt <- Seurat::CreateSeuratObject(subset(modalities[[1]], cells = obs_names), assay = names(modalities)[1])
-  for (modality in names(modalities)[2:length(modalities)]) {
+  # NOTE: [-1], not [2:length()], which yields c(NA, ..) for one modality
+  for (modality in names(modalities)[-1]) {
     srt[[modality]] <- subset(modalities[[modality]], cells = obs_names)
   }
 

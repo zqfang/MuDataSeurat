@@ -25,7 +25,9 @@ Suggests:
     rmarkdown,
     knitr,
     SeuratData,
-    BiocStyle
+    BiocStyle,
+    testthat (>= 3.0.0),
+    fs
 Config/Needs/website:
     r-lib/downlit
 Remotes: SeuratData=satijalab/seurat-data
@@ -33,4 +35,4 @@ VignetteBuilder: knitr
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.1.2
+RoxygenNote: 7.3.3
