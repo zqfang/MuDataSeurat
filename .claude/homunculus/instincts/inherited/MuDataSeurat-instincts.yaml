@@ -1,0 +1,339 @@
+# Instincts generated from https://github.com/zqfang/MuDataSeurat
+# Generated: 2026-07-15T04:29:09.888Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: MuDataSeurat-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/zqfang/MuDataSeurat
+---
+
+# MuDataSeurat Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: fix
+
+## Evidence
+
+- 1 commits analyzed
+- Detected conventional commit pattern
+- Examples: fix: correct data corruption and MuData compatibility bugs
+
+---
+id: MuDataSeurat-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/zqfang/MuDataSeurat
+---
+
+# MuDataSeurat Commit Length
+
+## Action
+
+Write moderate-length commit messages (~58 characters)
+
+## Evidence
+
+- Average commit message length: 58 chars
+- Based on 1 commits
+
+---
+id: MuDataSeurat-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/zqfang/MuDataSeurat
+---
+
+# MuDataSeurat Naming Files
+
+## Action
+
+Use PascalCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: PascalCase
+
+---
+id: MuDataSeurat-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/zqfang/MuDataSeurat
+---
+
+# MuDataSeurat Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: MuDataSeurat-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/zqfang/MuDataSeurat
+---
+
+# MuDataSeurat Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: MuDataSeurat-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/zqfang/MuDataSeurat
+---
+
+# MuDataSeurat Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: MuDataSeurat-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/zqfang/MuDataSeurat
+---
+
+# MuDataSeurat Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: mudataseurat-instinct-file-naming
+trigger: "When creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct File Naming
+
+## Action
+
+Name the file using PascalCase
+
+## Evidence
+
+- Pattern in namingConventions.files
+
+---
+id: mudataseurat-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct Function Naming
+
+## Action
+
+Use camelCase for the function name
+
+## Evidence
+
+- Pattern in namingConventions.functions
+
+---
+id: mudataseurat-instinct-class-naming
+trigger: "When declaring a new class"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct Class Naming
+
+## Action
+
+Use PascalCase for the class name
+
+## Evidence
+
+- Pattern in namingConventions.classes
+
+---
+id: mudataseurat-instinct-constant-naming
+trigger: "When declaring a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for the constant name
+
+## Evidence
+
+- Pattern in namingConventions.constants
+
+---
+id: mudataseurat-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct Import Style
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in importStyle
+
+---
+id: mudataseurat-instinct-export-style
+trigger: "When exporting modules or functions"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle
+
+---
+id: mudataseurat-instinct-test-file-pattern
+trigger: "When creating a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct Test File Pattern
+
+## Action
+
+Name the file with the pattern *.test.ts
+
+## Evidence
+
+- Pattern in testing.filePattern
+
+---
+id: mudataseurat-instinct-test-type
+trigger: "When writing tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct Test Type
+
+## Action
+
+Write unit tests
+
+## Evidence
+
+- Pattern in testing.testTypes
+
+---
+id: mudataseurat-instinct-commit-prefix
+trigger: "When making a git commit"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct Commit Prefix
+
+## Action
+
+Prefix the commit message with 'fix:' if fixing a bug
+
+## Evidence
+
+- Seen in commit 'fix: correct data corruption and MuData compatibility bugs'
+- Pattern in commits.prefixes
+
+---
+id: mudataseurat-instinct-commit-format
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: zqfang/MuDataSeurat
+---
+
+# Mudataseurat Instinct Commit Format
+
+## Action
+
+Follow the conventional commit format: <type>: <description>
+
+## Evidence
+
+- Pattern in commits.type
+- Seen in commit 'fix: correct data corruption and MuData compatibility bugs'
+
