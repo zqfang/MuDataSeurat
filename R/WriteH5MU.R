@@ -158,10 +158,13 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
         # This is required since Seurat does require having an existing modality
         # in assay.used, which complicates loading multimodal embeddings.
         # The latter are currently loaded with the default assay set as assay.used.
-        if (grepl(tolower(emb_assay), tolower(red_name)) || 
-            grepl(tolower(emb_assay), tolower(red@key)) || 
-            grepl(tolower(red_name), tolower(red@key))  ||
-            grepl(tolower(gsub('\\.', '', red_name)), tolower(red@key)) 
+        # Seurat strips non-alphanumeric characters when deriving a key from a
+        # reduction name (umap_harmony -> umapharmony_), so the name has to be
+        # sanitized the same way before comparing it against the key.
+        if (grepl(tolower(emb_assay), tolower(red_name), fixed = TRUE) ||
+            grepl(tolower(emb_assay), tolower(red@key), fixed = TRUE) ||
+            grepl(tolower(red_name), tolower(red@key), fixed = TRUE)  ||
+            grepl(tolower(gsub('[^[:alnum:]]', '', red_name)), tolower(red@key), fixed = TRUE)
             ) {
           modality_specific <- TRUE
         }
@@ -173,6 +176,9 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
       }
 
       if (!modality_specific) {
+        warning(paste0("Reduction ", red_name, " (key ", red@key, ", assay.used ",
+          emb_assay, ") was not recognised as specific to assay ", assay,
+          " and will not be written to .obsm."))
         next
       }
 
@@ -406,10 +412,13 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
         # This is required since Seurat does require having an existing modality
         # in assay.used, which complicates loading multimodal embeddings.
         # The latter are currently loaded with the default assay set as assay.used.
-        if (grepl(tolower(assay_emb), tolower(red_name)) || 
-            grepl(tolower(assay_emb), tolower(red@key)) || 
-            grepl(tolower(red_name), tolower(red@key))  ||
-            grepl(tolower(gsub('\\.', '', red_name)), tolower(red@key)) 
+        # Seurat strips non-alphanumeric characters when deriving a key from a
+        # reduction name (umap_harmony -> umapharmony_), so the name has to be
+        # sanitized the same way before comparing it against the key.
+        if (grepl(tolower(assay_emb), tolower(red_name), fixed = TRUE) ||
+            grepl(tolower(assay_emb), tolower(red@key), fixed = TRUE) ||
+            grepl(tolower(red_name), tolower(red@key), fixed = TRUE)  ||
+            grepl(tolower(gsub('[^[:alnum:]]', '', red_name)), tolower(red@key), fixed = TRUE)
             ) {
           modality_specific <- TRUE
         }
