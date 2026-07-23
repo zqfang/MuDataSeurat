@@ -29,6 +29,12 @@ The original repository activity seems quite low, and unfortunately, the bugs ha
      since anndata has no nullable-string encoding) instead of the text `"NaN"`.
    - `WriteH5AD` now errors on an unknown `assay` instead of silently writing
      a different one.
+   - Reductions whose names contain non-alphanumeric characters (`umap_harmony`,
+     `pca_uncorrected`, `mrVI_umap`, ...) are no longer dropped from `obsm`.
+     Seurat strips those characters when it derives a reduction key
+     (`umap_harmony` -> `umapharmony_`), which previously made such reductions
+     fail the assay-matching check and be skipped silently. A reduction that is
+     still not matched now raises a warning instead of disappearing.
 
 
 ## Installation
