@@ -44,7 +44,38 @@ finalize_anndata <- function(h5, internal = FALSE) {
   close(h5)
 }
 
-write_dataset <- function(parent, key, obj, scalar = FALSE) {
+# hdf5r compresses every dataset it creates with gzip by default. On a large
+# object that compression, not the I/O, is what dominates the time spent
+# writing, so it has to be controllable. Translate the user-facing `compression`
+# value into the arguments create_dataset() expects; the result is passed down
+# unchanged as `ds_args` so it is parsed once per file rather than per dataset.
+#
+# Without a filter there is nothing for chunking to buy on these write-once,
+# read-in-full datasets, so "no compression" also means a contiguous layout,
+# which is the fastest of the three.
+resolve_compression <- function(compression) {
+  invalid <- function() {
+    stop("compression must be \"gzip\", \"none\", or an integer between 0 and 9.",
+         call. = FALSE)
+  }
+  if (is.character(compression)) {
+    if (length(compression) != 1) invalid()
+    level <- switch(compression, gzip = NA_integer_, none = 0L, invalid())
+  } else {
+    if (length(compression) != 1) invalid()
+    level <- suppressWarnings(as.integer(compression))
+    if (is.na(level) || level < 0L || level > 9L) invalid()
+  }
+  if (is.na(level)) {
+    return(list())            # hdf5r's own defaults: chunked, gzip
+  }
+  if (level == 0L) {
+    return(list(chunk_dims = NULL))
+  }
+  list(gzip_level = level)
+}
+
+write_dataset <- function(parent, key, obj, scalar = FALSE, ds_args = list()) {
   dtype <- NULL
   space <- NULL
   if (is.character(obj)) {
@@ -54,7 +85,10 @@ write_dataset <- function(parent, key, obj, scalar = FALSE) {
   if (scalar) {
     space <- H5S$new("scalar")
   }
-  parent$create_dataset(key, obj, dtype = dtype, space = space)
+  do.call(
+    parent$create_dataset,
+    c(list(key, obj, dtype = dtype, space = space), ds_args)
+  )
 }
 
 write_attribute <- function(obj, name, value, scalar = TRUE) {
@@ -70,13 +104,13 @@ write_attribute <- function(obj, name, value, scalar = TRUE) {
   obj$create_attr(name, value, dtype = dtype, space = space)
 }
 
-write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix") {
+write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix", ds_args = list()) {
   # AnnData (>=0.8) has no nullable-string encoding, so a character vector with
   # NAs is stored as categorical, where missing values are represented by the
   # code -1. Previously NAs were coerced to the literal string "NaN", silently
   # corrupting the data.
   if (is.character(mat) && anyNA(mat)) {
-    return(write_matrix(parent, key, factor(mat), storage_sparse_type))
+    return(write_matrix(parent, key, factor(mat), storage_sparse_type, ds_args))
   }
 
   if (is.matrix(mat) || is.vector(mat) || is.array(mat)) {
@@ -88,15 +122,15 @@ write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix") {
     }
 
     if (!hasna) {
-      dset <- write_dataset(parent, key, mat)
+      dset <- write_dataset(parent, key, mat, ds_args = ds_args)
       write_attribute(dset, "encoding-type", ifelse(is.character(mat), "string-array", "array"))
       write_attribute(dset, "encoding-version", "0.2.0")
     } else {
       grp <- parent$create_group(key)
       # if a charactor vector with NA, this recursion will lead to stack overflow
       # fixed above
-      write_matrix(grp, "values", mat)
-      write_matrix(grp, "mask", is.na(mat))
+      write_matrix(grp, "values", mat, ds_args = ds_args)
+      write_matrix(grp, "mask", is.na(mat), ds_args = ds_args)
       write_attribute(grp, "encoding-type", ifelse(is.logical(mat), "nullable-boolean", "nullable-integer"))
       write_attribute(grp, "encoding-version", "0.1.0")
     }
@@ -104,8 +138,8 @@ write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix") {
     grp <- parent$create_group(key)
     codes <- as.integer(mat)
     codes[is.na(mat)] <- 0L
-    write_matrix(grp, "codes", codes - 1L)
-    write_matrix(grp, "categories", levels(mat))
+    write_matrix(grp, "codes", codes - 1L, ds_args = ds_args)
+    write_matrix(grp, "categories", levels(mat), ds_args = ds_args)
     write_attribute(grp, "ordered", is.ordered(mat))
     write_attribute(grp, "encoding-type", "categorical")
     write_attribute(grp, "encoding-version", "0.2.0")
@@ -116,15 +150,15 @@ write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix") {
     if (is(mat0, "dgCMatrix") && storage_sparse_type == "csc_matrix") mat0 <- Matrix::t(mat)
     ## dgRMatrix in R (Row-oriented sparse), need to transpose to save as csc via hdf5r
     if (is(mat0, "dgRMatrix") && storage_sparse_type == "csr_matrix") mat0 <- Matrix::t(mat)
-    write_dataset(grp, "indptr", mat0@p)
-    write_dataset(grp, "data", mat0@x)
+    write_dataset(grp, "indptr", mat0@p, ds_args = ds_args)
+    write_dataset(grp, "data", mat0@x, ds_args = ds_args)
     write_attribute(grp, "shape", rev(dim(mat)))
     write_attribute(grp, "encoding-version", "0.1.0")
     if (is(mat0, "dgCMatrix")) {
-      write_dataset(grp, "indices", mat0@i)
+      write_dataset(grp, "indices", mat0@i, ds_args = ds_args)
       write_attribute(grp, "encoding-type", storage_sparse_type) # "csr_matrix")
     } else {
-      write_dataset(grp, "indices", mat0@j)
+      write_dataset(grp, "indices", mat0@j, ds_args = ds_args)
       write_attribute(grp, "encoding-type", storage_sparse_type) # "csc_matrix")
     }
   } else {
@@ -155,7 +189,7 @@ sanitize_h5_names <- function(names) {
   out
 }
 
-write_data_frame <- function(parent, key, attr_df) {
+write_data_frame <- function(parent, key, attr_df, ds_args = list()) {
   grp <- parent$create_group(key)
   if (!is.data.frame(attr_df)) { # row names only. Creating a data.frame with duplicated row.names is not possible
     attr_df <- data.frame("_index" = attr_df, check.names = FALSE)
@@ -198,7 +232,7 @@ write_data_frame <- function(parent, key, attr_df) {
       warning("Skip meta.data column: ", col, ", because of all values are NA.")
       next
     }
-    write_matrix(grp, h5_col, attr_df[[i]])
+    write_matrix(grp, h5_col, attr_df[[i]], ds_args = ds_args)
   }
 
   # Write attributes
@@ -216,7 +250,7 @@ write_data_frame <- function(parent, key, attr_df) {
 # MuData records, for each modality, the 1-based index of every global
 # observation/variable within that modality (0 when it is not present).
 # Readers require /obsmap and /varmap to be present.
-write_mod_maps <- function(h5, modalities, n_obs, var_names) {
+write_mod_maps <- function(h5, modalities, n_obs, var_names, ds_args = list()) {
   obsmap_group <- h5$create_group("obsmap")
   write_attribute(obsmap_group, "encoding-type", "dict")
   write_attribute(obsmap_group, "encoding-version", "0.1.0")
@@ -228,14 +262,14 @@ write_mod_maps <- function(h5, modalities, n_obs, var_names) {
   var_offset <- 0L
   for (mod in modalities) {
     # A Seurat object shares all of its cells across every assay.
-    write_matrix(obsmap_group, mod, seq_len(n_obs))
+    write_matrix(obsmap_group, mod, seq_len(n_obs), ds_args = ds_args)
 
     # The global var is the concatenation of the per-modality var_names,
     # so each modality occupies one contiguous block of it.
     n_mod_var <- length(var_names[[mod]])
     varmap <- integer(n_var)
     varmap[var_offset + seq_len(n_mod_var)] <- seq_len(n_mod_var)
-    write_matrix(varmap_group, mod, varmap)
+    write_matrix(varmap_group, mod, varmap, ds_args = ds_args)
     var_offset <- var_offset + n_mod_var
   }
 }

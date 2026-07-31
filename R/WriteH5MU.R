@@ -1,8 +1,8 @@
 #' @rdname WriteH5MU
-setGeneric("WriteH5MU", function(object, file, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE) standardGeneric("WriteH5MU"))
+setGeneric("WriteH5MU", function(object, file, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE, compression = "gzip") standardGeneric("WriteH5MU"))
 
 #' @rdname WriteH5AD
-setGeneric("WriteH5AD", function(object, file, assay = NULL, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE) standardGeneric("WriteH5AD"))
+setGeneric("WriteH5AD", function(object, file, assay = NULL, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE, compression = "gzip") standardGeneric("WriteH5AD"))
 
 #' A helper function to write a modality (an assay) to an .h5mu file
 #'
@@ -10,7 +10,7 @@ setGeneric("WriteH5AD", function(object, file, assay = NULL, scale.data=FALSE, s
 #'
 #' @import hdf5r methods
 #' @importFrom Matrix t
-WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="csr_matrix", global = FALSE) {
+WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="csr_matrix", global = FALSE, ds_args = list()) {
 
   mod_object <- Seurat::GetAssay(object, assay)
 
@@ -22,7 +22,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
   } else {
     obs <- data.frame(row.names = obs_names)
   }
-  write_data_frame(root, "obs", obs)
+  write_data_frame(root, "obs", obs, ds_args = ds_args)
 
   # .var
   if(inherits(mod_object, "Assay5")) {
@@ -45,7 +45,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
   }
   
   
-  write_data_frame(root, "var", meta.features)
+  write_data_frame(root, "var", meta.features, ds_args = ds_args)
 
   # .X, .layers['counts']. .raw.X
   # Assumptions:
@@ -85,37 +85,37 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "counts", x[["counts"]], sparse.type)
-    write_matrix(layers_group, "data", x[["data"]], sparse.type)
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type)
+    write_matrix(layers_group, "counts", x[["counts"]], sparse.type, ds_args)
+    write_matrix(layers_group, "data", x[["data"]], sparse.type, ds_args)
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type, ds_args)
   } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]])) {
     # 4
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "counts", x[["counts"]], sparse.type)
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type)
+    write_matrix(layers_group, "counts", x[["counts"]], sparse.type, ds_args)
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type, ds_args)
   } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]])) {
     # 3
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "data", x[["data"]], sparse.type)
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type)
+    write_matrix(layers_group, "data", x[["data"]], sparse.type, ds_args)
+    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type, ds_args)
   } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
     write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "counts", x[["counts"]], sparse.type)
-    write_matrix(root, "X", x[["data"]], sparse.type)
+    write_matrix(layers_group, "counts", x[["counts"]], sparse.type, ds_args)
+    write_matrix(root, "X", x[["data"]], sparse.type, ds_args)
   } else {
     # Exactly one of counts/data/scale.data is present: write that one as X.
     which_x <- which(!vapply(x, is.null, logical(1)))
     if (length(which_x) == 0) {
       stop(paste0("Assay ", assay, " has no data in counts, data or scale.data to write."))
     }
-    write_matrix(root, "X", x[[which_x[1]]], sparse.type)
+    write_matrix(root, "X", x[[which_x[1]]], sparse.type, ds_args)
   }
 
   uns_group <- root$create_group("uns")
@@ -182,7 +182,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
         next
       }
 
-      write_matrix(obsm_group, paste0("X_", red_name), emb)
+      write_matrix(obsm_group, paste0("X_", red_name), emb, ds_args = ds_args)
 
       # loadings -> .varm
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
@@ -206,7 +206,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
           all_loadings <- loadings
         }
 
-        write_matrix(varm_group, varm_key, t(all_loadings))
+        write_matrix(varm_group, varm_key, t(all_loadings), ds_args = ds_args)
       }
 
       # stdev -> .uns[...]['variance']
@@ -215,7 +215,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
           uns_red <- uns_group$create_group(red_name)
           write_attribute(uns_red, "encoding-type", "dict")
           write_attribute(uns_red, "encoding-version", "0.1.0")
-          write_matrix(uns_red, "variance", red@stdev^2)
+          write_matrix(uns_red, "variance", red@stdev^2, ds_args = ds_args)
         }
       }
     }
@@ -240,7 +240,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
               graph_name <- substr(graph_name, 2, nchar(graph_name))
             }
           }
-          write_matrix(obsp_group, graph_name, graph, sparse.type)
+          write_matrix(obsp_group, graph_name, graph, sparse.type, ds_args)
         }
       }
     }
@@ -262,21 +262,29 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
 #' @param file Path to the .h5ad file.
 #' @param assay Assay to write; can be omitted if there is a single assay in the object.
 #' @param scale.data Boolen, wether to export scale.data.
-#' @param sparse.type String, save as csr_matrix or csc_matrix.
+#' @param sparse.type String, save as csr_matrix or csc_matrix. Note that
+#'   \code{csc_matrix} requires transposing every matrix on the way out, since
+#'   Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
 #' @param overwrite Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).
+#' @param compression Compression applied to the HDF5 datasets: \code{"gzip"}
+#'   (the default, and what previous versions always did), \code{"none"}, or an
+#'   integer gzip level between 0 and 9. Compression, not disk I/O, dominates
+#'   the time spent writing large objects, so \code{"none"} is several times
+#'   faster in exchange for a considerably larger file.
 #'
 #' @rdname WriteH5AD
 #'
 #' @import hdf5r
 #'
 #' @exportMethod WriteH5AD
-setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE) {
+setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE, compression = "gzip") {
   if (isFALSE(overwrite) && file.exists(file)) {
     stop(paste0("File ", file, " already exists. Use `overwrite = TRUE` to overwrite it or choose a different file name."))
   }
   if (!sparse.type %in% c("csr_matrix", "csc_matrix")) {
     stop(paste0("sparse.type: ", sparse.type, " not supported. Use `csr_matrix` or `csc_matrix`. "))
   }
+  ds_args <- resolve_compression(compression)
 
   h5 <- open_h5(file)
 
@@ -307,7 +315,7 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
   }
 
   # "Global" attributes such as metadata have to be written
-  WriteH5ADHelper(object, assay, h5, scale.data, sparse.type, global = TRUE)
+  WriteH5ADHelper(object, assay, h5, scale.data, sparse.type, global = TRUE, ds_args = ds_args)
 
   finalize_anndata(h5)
 
@@ -324,23 +332,31 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
 #' @param object \code{Seurat} object.
 #' @param file Path to the .h5mu file.
 #' @param scale.data Boolen, wether to export scale.data.
-#' @param sparse.type String, save as csr_matrix or csc_matrix.
+#' @param sparse.type String, save as csr_matrix or csc_matrix. Note that
+#'   \code{csc_matrix} requires transposing every matrix on the way out, since
+#'   Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
 #' @param overwrite Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).
+#' @param compression Compression applied to the HDF5 datasets: \code{"gzip"}
+#'   (the default, and what previous versions always did), \code{"none"}, or an
+#'   integer gzip level between 0 and 9. Compression, not disk I/O, dominates
+#'   the time spent writing large objects, so \code{"none"} is several times
+#'   faster in exchange for a considerably larger file.
 #'
 #' @rdname WriteH5MU
 #'
 #' @import hdf5r methods
 #'
 #' @exportMethod WriteH5MU
-setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse.type="csr_matrix", overwrite=TRUE) {
+setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse.type="csr_matrix", overwrite=TRUE, compression = "gzip") {
   if (!sparse.type %in% c("csr_matrix", "csc_matrix")) {
     stop(paste0("sparse.type: ", sparse.type, " not supported. Use `csr_matrix` or `csc_matrix`. "))
   }
+  ds_args <- resolve_compression(compression)
   h5 <- open_h5(file)
   # .obs
   obs <- object@meta.data
 
-  write_data_frame(h5, "obs", obs)
+  write_data_frame(h5, "obs", obs, ds_args = ds_args)
 
   modalities <- Seurat::Assays(object)
 
@@ -349,15 +365,15 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
   var_names <- lapply(modalities, function(mod) {
     mod_group <- h5$create_group(paste0("mod/", mod))
 
-    WriteH5ADHelper(object, mod, mod_group, scale.data, sparse.type)
+    WriteH5ADHelper(object, mod, mod_group, scale.data, sparse.type, ds_args = ds_args)
 
     mod_object <- object[[mod]]
     rownames(mod_object)
   })
   names(var_names) <- modalities
-  write_data_frame(h5, "var", do.call(c, var_names))
+  write_data_frame(h5, "var", do.call(c, var_names), ds_args = ds_args)
 
-  write_mod_maps(h5, modalities, nrow(obs), var_names)
+  write_mod_maps(h5, modalities, nrow(obs), var_names, ds_args = ds_args)
 
   uns_group <- h5$create_group("uns")
   write_attribute(uns_group, "encoding-type", "dict")
@@ -434,7 +450,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
         next
       }
 
-      write_matrix(obsm_group, paste0("X_", red_name), emb)
+      write_matrix(obsm_group, paste0("X_", red_name), emb, ds_args = ds_args)
 
       # loadings -> .varm
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
@@ -460,7 +476,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
           all_loadings <- loadings
         }
 
-        write_matrix(varm_group, varm_key, t(all_loadings))
+        write_matrix(varm_group, varm_key, t(all_loadings), ds_args = ds_args)
       }
 
       # stdev -> .uns[...]['variance']
@@ -474,7 +490,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
         } else {
           uns <- uns_group[[red_name]]
         }
-        write_matrix(uns, "variance", red@stdev^2)
+        write_matrix(uns, "variance", red@stdev^2, ds_args = ds_args)
       }
     }
   }
@@ -498,7 +514,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
       }
 
       if (graph_no_assay) {
-        write_matrix(obsp_group, graph_name, graph, sparse.type)
+        write_matrix(obsp_group, graph_name, graph, sparse.type, ds_args)
       }
     }
   }

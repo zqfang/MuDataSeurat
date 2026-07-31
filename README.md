@@ -35,6 +35,27 @@ The original repository activity seems quite low, and unfortunately, the bugs ha
      (`umap_harmony` -> `umapharmony_`), which previously made such reductions
      fail the assay-matching check and be skipped silently. A reduction that is
      still not matched now raises a warning instead of disappearing.
+7. Much faster on large objects. On a 500,000 cell object (2,000 features,
+   150M nonzeros, 28 metadata columns):
+
+   | | before | after |
+   |---|---|---|
+   | `ReadH5AD` | 54 s | 9 s |
+   | `WriteH5AD` | 23 s | 23 s (`compression = "gzip"`, the default) |
+   | `WriteH5AD` | 23 s | 3 s (`compression = "none"`) |
+
+   - Reading a `csr_matrix` no longer converts it to CSC and then transposes it
+     back: AnnData's CSR buffers already describe the matrix in the orientation
+     Seurat wants, so it is built from them directly.
+   - `nCount_*`/`nFeature_*` are no longer recomputed from the matrix when the
+     stored `obs` already contains them (they were recomputed and then
+     immediately overwritten). They are still computed when the file omits them.
+   - `obs` and `var` are read once per file instead of once per consumer
+     (`ReadH5AD` used to read `/obs` four times).
+   - New `compression` argument on `WriteH5AD`/`WriteH5MU`: `"gzip"` (default,
+     unchanged behaviour), `"none"`, or a gzip level from 0 to 9. Compression,
+     not disk I/O, dominates write time; `"none"` is several times faster in
+     exchange for a roughly 3x larger file.
 
 
 ## Installation

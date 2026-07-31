@@ -14,16 +14,18 @@ ReadH5AD <- function(file) {
   var <- read_table(h5[["var"]])
 
   # X
-  assay <- read_layers_to_assay(h5)
+  # obs and var have already been read above; passing them in keeps /obs from
+  # being read once here and once again for each of obsm/obsp below.
+  assay <- read_layers_to_assay(h5, obs = obs, var = var)
 
   # obsm
-  obsm <- read_attr_m(h5, 'obs')
+  obsm <- read_attr_m(h5, 'obs', rownames(obs))
 
   # varm
-  varm <- read_attr_m(h5, 'var')
+  varm <- read_attr_m(h5, 'var', rownames(var))
 
   # obsp
-  obsp <- read_attr_p(h5, 'obs')
+  obsp <- read_attr_p(h5, 'obs', rownames(obs))
 
   # If there are var pairs, there's no place to store it
   # in the Seurat object
@@ -37,12 +39,15 @@ ReadH5AD <- function(file) {
   # Create a Seurat object
   # If read from .h5mu modality, give an assay name
   path_fragments <- strsplit(file, "\\.h5mu")[[1]]
+  assay_name <- "RNA"  # Seurat's own default
   if (length(path_fragments) == 2) {
     mod_path_fragments <- strsplit(path_fragments[2], "\\/")[[1]]
     assay_name <- mod_path_fragments[length(mod_path_fragments)]
-    srt <- Seurat::CreateSeuratObject(assay, assay = assay_name)
+  }
+  if (calcn_is_redundant(assay_name, colnames(obs))) {
+    srt <- without_calcn(Seurat::CreateSeuratObject(assay, assay = assay_name))
   } else {
-    srt <- Seurat::CreateSeuratObject(assay)
+    srt <- Seurat::CreateSeuratObject(assay, assay = assay_name)
   }
 
   # Specify highly variable features
@@ -151,7 +156,7 @@ ReadH5MU <- function(file) {
   loadings <- read_attr_m(h5, 'var', rownames(ft_metadata))
 
   # Get obs pairs
-  obs_pairs <- read_attr_p(h5, 'obs')
+  obs_pairs <- read_attr_p(h5, 'obs', rownames(metadata))
 
   # If there are var pairs, there's no place to store it
   # in the Seurat object
@@ -161,33 +166,41 @@ ReadH5MU <- function(file) {
   if (!is.null(var_pairs_names) && !isFALSE(var_pairs_names) && length(var_pairs_names) > 0)
     missing_on_read("/varp", "pairwise annotation of variables")
 
-  # mod/.../X, raw, and layers
-  modalities <- lapply(assays, function(mod) {
-   read_layers_to_assay(h5[['mod']][[mod]], mod)
-  })
-  names(modalities) <- assays
-
-  # mod/.../obs
+  # mod/.../obs and mod/.../var
+  # These are read up front because the assay, obsm, varm and obsp of a modality
+  # all need them; reading them once here rather than inside each of those steps
+  # avoids re-reading every modality's /obs three more times.
   mod_obs <- lapply(assays, function(mod) {
     read_table(h5[['mod']][[mod]][['obs']])
   })
   names(mod_obs) <- assays
 
+  mod_var <- lapply(assays, function(mod) {
+    read_table(h5[['mod']][[mod]][['var']])
+  })
+  names(mod_var) <- assays
+
+  # mod/.../X, raw, and layers
+  modalities <- lapply(assays, function(mod) {
+   read_layers_to_assay(h5[['mod']][[mod]], mod, obs = mod_obs[[mod]], var = mod_var[[mod]])
+  })
+  names(modalities) <- assays
+
   # mod/.../obsm
   mod_obsm <- lapply(assays, function(mod) {
-    read_attr_m(h5[['mod']][[mod]], 'obs')
+    read_attr_m(h5[['mod']][[mod]], 'obs', rownames(mod_obs[[mod]]))
   })
   names(mod_obsm) <- assays
 
   # mod/.../varm
   mod_varm <- lapply(assays, function(mod) {
-    read_attr_m(h5[['mod']][[mod]], 'var')
+    read_attr_m(h5[['mod']][[mod]], 'var', rownames(mod_var[[mod]]))
   })
   names(mod_varm) <- assays
 
   # mod/.../obsp
   mod_obsp <- lapply(assays, function(mod) {
-    read_attr_p(h5[['mod']][[mod]], 'obs')
+    read_attr_p(h5[['mod']][[mod]], 'obs', rownames(mod_obs[[mod]]))
   })
   names(mod_obsp) <- assays
 
@@ -215,10 +228,18 @@ ReadH5MU <- function(file) {
   }
 
   # Create a Seurat object
-  srt <- Seurat::CreateSeuratObject(subset(modalities[[1]], cells = obs_names), assay = names(modalities)[1])
+  # Only CreateSeuratObject() recomputes nCount/nFeature, and it does so for the
+  # first modality only; assigning the remaining assays below does not.
+  first_assay <- subset_cells(modalities[[1]], obs_names)
+  merged_meta_columns <- c(colnames(metadata), unlist(lapply(mod_obs, colnames), use.names = FALSE))
+  if (calcn_is_redundant(names(modalities)[1], merged_meta_columns)) {
+    srt <- without_calcn(Seurat::CreateSeuratObject(first_assay, assay = names(modalities)[1]))
+  } else {
+    srt <- Seurat::CreateSeuratObject(first_assay, assay = names(modalities)[1])
+  }
   # NOTE: [-1], not [2:length()], which yields c(NA, ..) for one modality
   for (modality in names(modalities)[-1]) {
-    srt[[modality]] <- subset(modalities[[modality]], cells = obs_names)
+    srt[[modality]] <- subset_cells(modalities[[modality]], obs_names)
   }
 
   # Global /obs is where a Seurat object's meta.data is written, so it has to be

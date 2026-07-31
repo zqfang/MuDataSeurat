@@ -10,7 +10,8 @@ WriteH5MU(
   file,
   scale.data = FALSE,
   sparse.type = "csr_matrix",
-  overwrite = TRUE
+  overwrite = TRUE,
+  compression = "gzip"
 )
 
 \S4method{WriteH5MU}{Seurat}(
@@ -18,7 +19,8 @@ WriteH5MU(
   file,
   scale.data = FALSE,
   sparse.type = "csr_matrix",
-  overwrite = TRUE
+  overwrite = TRUE,
+  compression = "gzip"
 )
 }
 \arguments{
@@ -28,9 +30,17 @@ WriteH5MU(
 
 \item{scale.data}{Boolen, wether to export scale.data.}
 
-\item{sparse.type}{String, save as csr_matrix or csc_matrix.}
+\item{sparse.type}{String, save as csr_matrix or csc_matrix. Note that
+\code{csc_matrix} requires transposing every matrix on the way out, since
+Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.}
 
 \item{overwrite}{Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).}
+
+\item{compression}{Compression applied to the HDF5 datasets: \code{"gzip"}
+(the default, and what previous versions always did), \code{"none"}, or an
+integer gzip level between 0 and 9. Compression, not disk I/O, dominates
+the time spent writing large objects, so \code{"none"} is several times
+faster in exchange for a considerably larger file.}
 }
 \description{
 Save \code{\link{Seurat}} object to .h5mu file.

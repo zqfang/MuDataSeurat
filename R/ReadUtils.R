@@ -14,6 +14,40 @@ add_meta_data <- function(meta_data, new_meta) {
   merged
 }
 
+# CreateSeuratObject() recomputes nCount_<assay>/nFeature_<assay> from the
+# matrix. That costs a full pass over X plus a second sparse allocation for the
+# `x > 0` term, which on large objects dominates the time spent reading a file.
+# When the stored metadata already carries those columns they are the
+# authoritative values and add_meta_data() overwrites the recomputed ones
+# anyway, so the computation is pure waste. When they are absent it is not
+# waste: skipping it would silently drop them from the resulting object.
+#
+# `provided` are the column names of every metadata table that will be merged
+# into the object's meta.data.
+calcn_is_redundant <- function(assay_name, provided) {
+  all(paste0(c("nCount_", "nFeature_"), assay_name) %in% provided)
+}
+
+# Evaluate `expr` with Seurat's nCount/nFeature recomputation turned off.
+# Older SeuratObject versions do not consult this option, in which case the
+# values are computed as before and only the speedup is lost.
+without_calcn <- function(expr) {
+  old <- options(Seurat.object.assay.calcn = FALSE)
+  on.exit(options(old), add = TRUE)
+  force(expr)
+}
+
+# subset() copies every matrix an assay holds. When the assay already contains
+# exactly the requested cells in the requested order -- the usual case for a
+# single modality, or for modalities that share all of their observations --
+# that copy is a no-op and can be skipped.
+subset_cells <- function(assay, cells) {
+  if (identical(colnames(assay), cells)) {
+    return(assay)
+  }
+  subset(assay, cells = cells)
+}
+
 #' @importFrom hdf5r is_hdf5 H5File
 open_and_check_mudata <- function(filename) {
     if (readChar(filename, 6) != "MuData") {
@@ -184,6 +218,21 @@ read_table <- function(dataset, set_index = TRUE) {
   table
 }
 
+# Build a dgCMatrix straight from the buffers read out of the file, bypassing
+# Matrix::sparseMatrix(), which makes an extra pass to sort and validate them.
+# Returns NULL when the buffers are not in canonical form (indices sorted and
+# unique within each slice); sparseMatrix() repairs those, so callers fall back
+# to it rather than failing.
+#' @import Matrix
+new_dgCMatrix <- function(i, p, x, dims) {
+  tryCatch(
+    new("dgCMatrix",
+        i = as.integer(i), p = as.integer(p), x = as.double(x),
+        Dim = as.integer(dims), Dimnames = list(NULL, NULL)),
+    error = function(e) NULL
+  )
+}
+
 #' @import Matrix
 read_matrix <- function(dataset) {
   if ("data" %in% names(dataset) && "indices" %in% names(dataset) && "indptr" %in% names(dataset)) {
@@ -205,10 +254,28 @@ read_matrix <- function(dataset) {
         }
       }
 
-      if (rowwise)
-          X <- Matrix::sparseMatrix(j=i, p=p, x=x, dims=X_dims, index1=FALSE)
-      else
+      # The result is always transposed relative to how AnnData stores the
+      # matrix, because AnnData is observations x variables and Seurat is
+      # variables x observations.
+      if (rowwise) {
+        # A CSR matrix of shape (n_obs, n_var) and a CSC matrix of shape
+        # (n_var, n_obs) have identical indptr/indices/data buffers, so the
+        # transpose is a reinterpretation of what was just read rather than a
+        # conversion. Going through sparseMatrix() instead would convert CSR to
+        # CSC and then Matrix::t() would convert it straight back.
+        X <- new_dgCMatrix(i, p, x, rev(X_dims))
+        if (!is.null(X)) {
+          return(X)
+        }
+        X <- Matrix::sparseMatrix(j=i, p=p, x=x, dims=X_dims, index1=FALSE)
+      } else {
+        # CSC input does need a real transpose, but it can at least be built
+        # without sparseMatrix()'s extra pass.
+        X <- new_dgCMatrix(i, p, x, X_dims)
+        if (is.null(X)) {
           X <- Matrix::sparseMatrix(i=i, p=p, x=x, dims=X_dims, index1=FALSE)
+        }
+      }
 
       Matrix::t(X)
 
@@ -217,11 +284,16 @@ read_matrix <- function(dataset) {
     }
 }
 
+# `obs` and `var` are the tables at root/obs and root/var. Callers that have
+# already read them pass them in: they are also needed to label obsm/varm/obsp,
+# and re-reading /obs is expensive once there are many observations.
 #' @import Matrix
-read_layers_to_assay <- function(root, modalityname="") {
+read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL) {
   X <- read_matrix(root[['X']])
 
-  var <- read_table(root[['var']])
+  if (is.null(var)) {
+    var <- read_table(root[['var']])
+  }
   if (any(grepl("_", rownames(var)))) {
     example_which <- grep("_", rownames(var))[1]
     example_before <- rownames(var)[example_which]
@@ -231,7 +303,9 @@ read_layers_to_assay <- function(root, modalityname="") {
       " E.g. ", example_before, " -> ", example_after, "."))
   }
 
-  obs <- read_table(root[['obs']])
+  if (is.null(obs)) {
+    obs <- read_table(root[['obs']])
+  }
   # NOTE: obs names must NOT be prefixed with the modality name here.
   # ReadH5MU takes the intersection of obs names across modalities to build a
   # single Seurat object, so per-modality prefixes would make it empty.

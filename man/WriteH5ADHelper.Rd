@@ -10,7 +10,8 @@ WriteH5ADHelper(
   root,
   scale.data = FALSE,
   sparse.type = "csr_matrix",
-  global = FALSE
+  global = FALSE,
+  ds_args = list()
 )
 }
 \description{
