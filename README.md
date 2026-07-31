@@ -20,7 +20,9 @@ The original repository activity seems quite low, and unfortunately, the bugs ha
    - skip columns with all NA value
    - fixed string array with NA
 5. Add one new keyword arguments to `WriteH5AD` and `WriteH5MU`:
+
    - `sparse.type`: store `csc_matrix` or `csr_matrix` in `anndata/mudata`
+   - `compression` : compression type, "gzip", or "none"
 6. Correctness fixes
 
    - `.h5mu` files are now readable by `mudata`: `obsm`, `varm`, `obsp`, `varp`,
@@ -168,18 +170,18 @@ seu <- ReadH5MU("big.h5mu", backend = "bpcells", bpcells.dir = "big_bpcells")
 
 The two forms trade off differently:
 
-| `bpcells.dir` | cost to open | afterwards |
-| ------------- | ------------ | ---------- |
-| `NULL` (default) | nothing is copied | every pass re-reads the HDF5; the object breaks if the source file moves or is deleted |
-| a directory | one pass over the data, plus disk | much faster to compute on, and the object survives `saveRDS` and the source file going away |
+| `bpcells.dir`    | cost to open                      | afterwards                                                                                   |
+| ------------------ | --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `NULL` (default) | nothing is copied                 | every pass re-reads the HDF5; the object breaks if the source file moves or is deleted       |
+| a directory        | one pass over the data, plus disk | much faster to compute on, and the object survives`saveRDS` and the source file going away |
 
 Reading a 120,000 cell file (2,000 features, 391 MB uncompressed `.h5ad`):
 
-| backend | peak memory | time  |
-| ------- | ----------- | ----- |
-| `"memory"` (default) | 858 MB | 2.3 s |
-| `"bpcells"`, no dir  | 145 MB | 2.2 s |
-| `"bpcells"` + dir    | 149 MB | 1.9 s |
+| backend                | peak memory | time  |
+| ---------------------- | ----------- | ----- |
+| `"memory"` (default) | 858 MB      | 2.3 s |
+| `"bpcells"`, no dir  | 145 MB      | 2.2 s |
+| `"bpcells"` + dir    | 149 MB      | 1.9 s |
 
 Only the count matrices are affected. `obsm`, `varm` and `obsp` — reductions and
 graphs — are always read into memory, since Seurat needs real matrices for them
@@ -228,10 +230,10 @@ each block is pulled, so nothing is materialised in full.
 On a 120,000 cell object (2,000 features, 63.6M nonzeros), writing the same data
 from a BPCells-backed assay versus an in-memory one:
 
-|                     | peak memory | time  |
-| ------------------- | ----------- | ----- |
-| BPCells (streamed)  | 213 MB      | 3.0 s |
-| in-memory `dgCMatrix` | 946 MB    | 1.7 s |
+|                        | peak memory | time  |
+| ---------------------- | ----------- | ----- |
+| BPCells (streamed)     | 213 MB      | 3.0 s |
+| in-memory`dgCMatrix` | 946 MB      | 1.7 s |
 
 The output files are byte-for-byte identical apart from the `indptr` integer
 width. Streaming trades some speed for a bounded memory ceiling.
