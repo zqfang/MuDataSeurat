@@ -75,6 +75,24 @@ resolve_compression <- function(compression) {
   list(gzip_level = level)
 }
 
+# scale.data is no longer written; the reasoning is in WriteH5ADHelper(). The
+# argument is kept in the signatures so that existing calls keep working instead
+# of failing with "unused argument" -- `scale.data = FALSE` already describes
+# what happens now, so only an explicit TRUE has anything to say.
+warn_scale_data_deprecated <- function(scale.data) {
+  if (isTRUE(scale.data)) {
+    warning(
+      "`scale.data` is deprecated and ignored: scale.data is no longer written. ",
+      "AnnData requires X to span every feature, so exporting a matrix that was ",
+      "scaled on the variable features only meant padding it out with NaN to ",
+      "many times its size. Scaling can be recomputed after reading instead ",
+      "(`ScaleData()` in Seurat, `sc.pp.scale` in scanpy).",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 write_dataset <- function(parent, key, obj, scalar = FALSE, ds_args = list()) {
   dtype <- NULL
   space <- NULL
@@ -476,24 +494,4 @@ write_mod_maps <- function(h5, modalities, n_obs, var_names, ds_args = list()) {
     write_matrix(varmap_group, mod, varmap, ds_args = ds_args)
     var_offset <- var_offset + n_mod_var
   }
-}
-
-reshape_scaled_data <- function(mat, var.meta, mat_name = "scale.data") {
-  # If only a subset of features was used,
-  # this has to be accounted for
-  all_mat <- mat
-  if (nrow(mat) < nrow(var.meta)) {
-    warning(paste0(
-      "data values for `", mat_name, "` are computed only for a some features (HVGs).",
-      " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data/counts."
-    ))
-    all_mat <- matrix(
-      ncol = ncol(mat),
-      nrow = nrow(var.meta)
-    )
-    rownames(all_mat) <- rownames(var.meta)
-    all_mat[rownames(mat), ] <- mat
-  }
-  ## don't transpose the dense matrix for anndata (will do the transpose implicity when using hdf5r to write)
-  return(all_mat)
 }

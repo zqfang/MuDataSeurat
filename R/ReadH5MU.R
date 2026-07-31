@@ -1,11 +1,27 @@
 #' Read an .h5mu file and create a \code{\link{Seurat}} object.
 #'
 #' @param file Path to the .h5mu file.
+#' @param backend How the count matrices are held. \code{"memory"} (the default)
+#'   reads them into sparse matrices. \code{"bpcells"} leaves them on disk as
+#'   \pkg{BPCells} matrices, so an object larger than memory can still be opened;
+#'   it requires the \pkg{BPCells} package. Only \code{X}, \code{layers} and
+#'   \code{raw} are affected; \code{obsm}, \code{varm} and \code{obsp} are always
+#'   read into memory, as Seurat needs real matrices for reductions and graphs.
+#' @param bpcells.dir Only used when \code{backend = "bpcells"}. When
+#'   \code{NULL}, the matrices keep reading from \code{file} itself: nothing is
+#'   copied and opening is instant, but the object is only valid while that file
+#'   stays where it is, and every pass over the data re-reads the HDF5. When a
+#'   directory is given, each matrix is converted once into BPCells' own format
+#'   underneath it, which costs a pass over the data plus disk space but is much
+#'   faster to compute on afterwards and survives \code{saveRDS}.
 #'
 #' @return A \code{\link{Seurat}} object
 #'
 #' @export
-ReadH5AD <- function(file) {
+ReadH5AD <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL) {
+  backend <- check_backend(backend)
+  check_bpcells_dir(backend, bpcells.dir)
+
   # Connect to the the file
   h5 <- open_anndata(file)
 
@@ -16,7 +32,8 @@ ReadH5AD <- function(file) {
   # X
   # obs and var have already been read above; passing them in keeps /obs from
   # being read once here and once again for each of obsm/obsp below.
-  assay <- read_layers_to_assay(h5, obs = obs, var = var)
+  assay <- read_layers_to_assay(h5, obs = obs, var = var,
+                                backend = backend, bpcells.dir = bpcells.dir)
 
   # obsm
   obsm <- read_attr_m(h5, 'obs', rownames(obs))
@@ -84,7 +101,7 @@ ReadH5AD <- function(file) {
     }
 
     srt[[emb_name]] <- Seurat::CreateDimReducObject(
-      embeddings = obsm[[emb]][rownames(obs),,drop=FALSE],
+      embeddings = name_embeddings(obsm[[emb]][rownames(obs),,drop=FALSE], paste0(emb_name, "_")),
       loadings = maybe_loadings,
       key = paste0(emb_name, "_"),
       assay = Seurat::DefaultAssay(srt),
@@ -104,6 +121,7 @@ ReadH5AD <- function(file) {
 #' Create a \code{Seurat} object from .h5mu file contents
 #'
 #' @param file Path to the .h5mu file
+#' @inheritParams ReadH5AD
 #'
 #' @import hdf5r Matrix Seurat
 #' @importFrom utils hasName
@@ -111,7 +129,10 @@ ReadH5AD <- function(file) {
 #' @return A \code{Seurat} object
 #' '
 #' @export ReadH5MU
-ReadH5MU <- function(file) {
+ReadH5MU <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL) {
+  backend <- check_backend(backend)
+  check_bpcells_dir(backend, bpcells.dir)
+
   # Connect to the the file
   h5 <- open_and_check_mudata(file)
 
@@ -179,7 +200,8 @@ ReadH5MU <- function(file) {
 
   # mod/.../X, raw, and layers
   modalities <- lapply(assays, function(mod) {
-   read_layers_to_assay(h5[['mod']][[mod]], mod, obs = mod_obs[[mod]], var = mod_var[[mod]])
+   read_layers_to_assay(h5[['mod']][[mod]], mod, obs = mod_obs[[mod]], var = mod_var[[mod]],
+                        backend = backend, bpcells.dir = bpcells.dir)
   })
   names(modalities) <- assays
 
@@ -285,7 +307,7 @@ ReadH5MU <- function(file) {
     }
 
     srt[[emb_name]] <- Seurat::CreateDimReducObject(
-      embeddings = embeddings[[emb]][obs_names,,drop=FALSE],
+      embeddings = name_embeddings(embeddings[[emb]][obs_names,,drop=FALSE], paste0(emb_name, "_")),
       loadings = maybe_loadings,
       key = paste0(emb_name, "_"),
       stdev = emb_stdev,
@@ -332,7 +354,7 @@ ReadH5MU <- function(file) {
       }
 
       srt[[modemb_name]] <- Seurat::CreateDimReducObject(
-        embeddings = mod_embeddings[[emb]][obs_names,,drop=FALSE],
+        embeddings = name_embeddings(mod_embeddings[[emb]][obs_names,,drop=FALSE], paste0(modemb_name, "_")),
         loadings = maybe_loadings,
         key = paste0(modemb_name, "_"),
         stdev = emb_stdev,

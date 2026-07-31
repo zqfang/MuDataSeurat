@@ -8,7 +8,6 @@ WriteH5ADHelper(
   object,
   assay,
   root,
-  scale.data = FALSE,
   sparse.type = "csr_matrix",
   global = FALSE,
   ds_args = list()

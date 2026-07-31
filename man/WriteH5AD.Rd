@@ -32,7 +32,11 @@ WriteH5AD(
 
 \item{assay}{Assay to write; can be omitted if there is a single assay in the object.}
 
-\item{scale.data}{Boolen, wether to export scale.data.}
+\item{scale.data}{Deprecated and ignored; \code{scale.data} is never
+written. AnnData requires \code{X} to span every feature, so exporting a
+matrix scaled on the variable features only meant padding it out with
+\code{NaN} to many times its size. Recompute it after reading instead
+(\code{ScaleData()} in Seurat, \code{sc.pp.scale} in scanpy).}
 
 \item{sparse.type}{String, save as csr_matrix or csc_matrix. Note that
 \code{csc_matrix} requires transposing every matrix on the way out, since
@@ -53,5 +57,5 @@ This function writes the data of one of the assays (modalities) of a \code{Seura
 The behavior of this function if NAs are present is undefined.
 }
 \details{
-The following slots are saved: count matrices (`@counts`, `@scale.data` and `@data`), `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
+The following slots are saved: count matrices (`@counts` and `@data`), `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
 }

@@ -10,7 +10,7 @@ setGeneric("WriteH5AD", function(object, file, assay = NULL, scale.data=FALSE, s
 #'
 #' @import hdf5r methods
 #' @importFrom Matrix t
-WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="csr_matrix", global = FALSE, ds_args = list()) {
+WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", global = FALSE, ds_args = list()) {
 
   mod_object <- Seurat::GetAssay(object, assay)
 
@@ -55,15 +55,20 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
   
   write_data_frame(root, "var", meta.features, ds_args = ds_args)
 
-  # .X, .layers['counts']. .raw.X
+  # .X, .layers['counts']
   # Assumptions:
-  #   1. counts/data/scale.data -> X
-  #   3. counts & data -> layers['counts'], X
-  #   2. data & scale.data -> layers['data'], X
-  #   4. counts & scale.data -> layers['counts'], X
-  #   5. counts & data & scale.data -> layers['counts'], layers['data'], X
-  
-  x_names <- list("counts", "data", "scale.data")
+  #   1. counts only, or data only -> X
+  #   2. counts & data             -> layers['counts'], X = data
+  #
+  # scale.data is deliberately never written. ScaleData() runs on the variable
+  # features only, while AnnData requires X to span every feature, so exporting
+  # it meant padding it out to the full var axis with NaN. That padded array is
+  # n_features/n_variable_features times the size of the real data -- commonly
+  # 10-15x, and dense -- which made it by far the largest thing a write ever
+  # allocated, and it is mostly NaN once written, which is not something a
+  # reader can compute on anyway. Scaling is one call to recompute downstream
+  # (ScaleData() in Seurat, sc.pp.scale in scanpy), so the data is not lost.
+  x_names <- list("counts", "data")
 
   x <- lapply(x_names, function(x_name) {
     x <- NULL
@@ -79,38 +84,11 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
       if (nrow(x) == 0 || ncol(x) == 0)
         x <- NULL
     }
-    # if (x_name == 'scale.data' && (!scale.data))
-    #     x <- NULL
     x
   })
   names(x) <- unlist(x_names)
-  # skip scale.data. NOTE the syntax here to advoid shortening list 
-  if (!scale.data) x['scale.data'] <- list(NULL)
-  
 
-  if ( (!any(vapply(x, is.null, TRUE)))) {
-    # 5
-    layers_group <- root$create_group("layers")
-    write_attribute(layers_group, "encoding-type", "dict")
-    write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "counts", x[["counts"]], sparse.type, ds_args)
-    write_matrix(layers_group, "data", x[["data"]], sparse.type, ds_args)
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type, ds_args)
-  } else if (!is.null(x[["counts"]]) && !is.null(x[["scale.data"]])) {
-    # 4
-    layers_group <- root$create_group("layers")
-    write_attribute(layers_group, "encoding-type", "dict")
-    write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "counts", x[["counts"]], sparse.type, ds_args)
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type, ds_args)
-  } else if (!is.null(x[["data"]]) && !is.null(x[["scale.data"]])) {
-    # 3
-    layers_group <- root$create_group("layers")
-    write_attribute(layers_group, "encoding-type", "dict")
-    write_attribute(layers_group, "encoding-version", "0.1.0")
-    write_matrix(layers_group, "data", x[["data"]], sparse.type, ds_args)
-    write_matrix(root, "X", reshape_scaled_data(x[["scale.data"]], meta.features), sparse.type, ds_args)
-  } else if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
+  if (!is.null(x[["counts"]]) && !is.null(x[["data"]])) {
     # 2
     layers_group <- root$create_group("layers")
     write_attribute(layers_group, "encoding-type", "dict")
@@ -118,10 +96,10 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
     write_matrix(layers_group, "counts", x[["counts"]], sparse.type, ds_args)
     write_matrix(root, "X", x[["data"]], sparse.type, ds_args)
   } else {
-    # Exactly one of counts/data/scale.data is present: write that one as X.
+    # 1: exactly one of counts/data is present, write that one as X.
     which_x <- which(!vapply(x, is.null, logical(1)))
     if (length(which_x) == 0) {
-      stop(paste0("Assay ", assay, " has no data in counts, data or scale.data to write."))
+      stop(paste0("Assay ", assay, " has no data in counts or data to write."))
     }
     write_matrix(root, "X", x[[which_x[1]]], sparse.type, ds_args)
   }
@@ -264,12 +242,16 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
 #' This function writes the data of one of the assays (modalities) of a \code{Seurat} object into an .h5ad file.
 #' The behavior of this function if NAs are present is undefined.
 #'
-#' The following slots are saved: count matrices (`@counts`, `@scale.data` and `@data`), `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
+#' The following slots are saved: count matrices (`@counts` and `@data`), `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
 #'
 #' @param object \code{Seurat} object.
 #' @param file Path to the .h5ad file.
 #' @param assay Assay to write; can be omitted if there is a single assay in the object.
-#' @param scale.data Boolen, wether to export scale.data.
+#' @param scale.data Deprecated and ignored; \code{scale.data} is never
+#'   written. AnnData requires \code{X} to span every feature, so exporting a
+#'   matrix scaled on the variable features only meant padding it out with
+#'   \code{NaN} to many times its size. Recompute it after reading instead
+#'   (\code{ScaleData()} in Seurat, \code{sc.pp.scale} in scanpy).
 #' @param sparse.type String, save as csr_matrix or csc_matrix. Note that
 #'   \code{csc_matrix} requires transposing every matrix on the way out, since
 #'   Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
@@ -288,6 +270,7 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
 #'
 #' @exportMethod WriteH5AD
 setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE, compression = "gzip") {
+  warn_scale_data_deprecated(scale.data)
   if (isFALSE(overwrite) && file.exists(file)) {
     stop(paste0("File ", file, " already exists. Use `overwrite = TRUE` to overwrite it or choose a different file name."))
   }
@@ -326,7 +309,7 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
   }
 
   # "Global" attributes such as metadata have to be written
-  WriteH5ADHelper(object, assay, h5, scale.data, sparse.type, global = TRUE, ds_args = ds_args)
+  WriteH5ADHelper(object, assay, h5, sparse.type, global = TRUE, ds_args = ds_args)
 
   finalize_anndata(h5)
 
@@ -338,11 +321,15 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
 #' Save \code{\link{Seurat}} object to .h5mu file.
 #' The behavior of this function if NAs are present is undefined.
 #'
-#' The following slots are saved: count matrices (`@counts`, `@scale.data` and `@data`), `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
+#' The following slots are saved: count matrices (`@counts` and `@data`), `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
 #'
 #' @param object \code{Seurat} object.
 #' @param file Path to the .h5mu file.
-#' @param scale.data Boolen, wether to export scale.data.
+#' @param scale.data Deprecated and ignored; \code{scale.data} is never
+#'   written. AnnData requires \code{X} to span every feature, so exporting a
+#'   matrix scaled on the variable features only meant padding it out with
+#'   \code{NaN} to many times its size. Recompute it after reading instead
+#'   (\code{ScaleData()} in Seurat, \code{sc.pp.scale} in scanpy).
 #' @param sparse.type String, save as csr_matrix or csc_matrix. Note that
 #'   \code{csc_matrix} requires transposing every matrix on the way out, since
 #'   Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
@@ -361,6 +348,7 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
 #'
 #' @exportMethod WriteH5MU
 setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse.type="csr_matrix", overwrite=TRUE, compression = "gzip") {
+  warn_scale_data_deprecated(scale.data)
   if (!sparse.type %in% c("csr_matrix", "csc_matrix")) {
     stop(paste0("sparse.type: ", sparse.type, " not supported. Use `csr_matrix` or `csc_matrix`. "))
   }
@@ -379,7 +367,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
   var_names <- lapply(modalities, function(mod) {
     mod_group <- h5$create_group(paste0("mod/", mod))
 
-    WriteH5ADHelper(object, mod, mod_group, scale.data, sparse.type, ds_args = ds_args)
+    WriteH5ADHelper(object, mod, mod_group, sparse.type, ds_args = ds_args)
 
     mod_object <- object[[mod]]
     rownames(mod_object)

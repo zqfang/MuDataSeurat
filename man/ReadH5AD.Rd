@@ -4,10 +4,25 @@
 \alias{ReadH5AD}
 \title{Read an .h5mu file and create a \code{\link{Seurat}} object.}
 \usage{
-ReadH5AD(file)
+ReadH5AD(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
 }
 \arguments{
 \item{file}{Path to the .h5mu file.}
+
+\item{backend}{How the count matrices are held. \code{"memory"} (the default)
+reads them into sparse matrices. \code{"bpcells"} leaves them on disk as
+\pkg{BPCells} matrices, so an object larger than memory can still be opened;
+it requires the \pkg{BPCells} package. Only \code{X}, \code{layers} and
+\code{raw} are affected; \code{obsm}, \code{varm} and \code{obsp} are always
+read into memory, as Seurat needs real matrices for reductions and graphs.}
+
+\item{bpcells.dir}{Only used when \code{backend = "bpcells"}. When
+\code{NULL}, the matrices keep reading from \code{file} itself: nothing is
+copied and opening is instant, but the object is only valid while that file
+stays where it is, and every pass over the data re-reads the HDF5. When a
+directory is given, each matrix is converted once into BPCells' own format
+underneath it, which costs a pass over the data plus disk space but is much
+faster to compute on afterwards and survives \code{saveRDS}.}
 }
 \value{
 A \code{\link{Seurat}} object

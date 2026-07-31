@@ -296,13 +296,92 @@ read_matrix <- function(dataset) {
     }
 }
 
+check_bpcells_dir <- function(backend, bpcells.dir) {
+  if (backend == "memory" && !is.null(bpcells.dir)) {
+    stop("bpcells.dir is only meaningful with backend = \"bpcells\".",
+         call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+check_backend <- function(backend) {
+  backend <- match.arg(backend, c("memory", "bpcells"))
+  if (backend == "bpcells" && !requireNamespace("BPCells", quietly = TRUE)) {
+    stop("backend = \"bpcells\" requires the BPCells package.\n",
+         "Install it with remotes::install_github(\"bnprks/BPCells/r\").",
+         call. = FALSE)
+  }
+  backend
+}
+
+# The absolute HDF5 path of `key` relative to `root`, which is what BPCells needs
+# (it opens the file itself by path rather than reusing the hdf5r handle). For an
+# .h5ad `root` is the file and this yields "/X"; for a modality of an .h5mu it
+# yields "/mod/RNA/X".
+h5_group_path <- function(root, key) {
+  prefix <- root$get_obj_name()
+  if (prefix == "/") {
+    return(paste0("/", key))
+  }
+  paste0(prefix, "/", key)
+}
+
+# Load one matrix out of the file.
+#
+# The memory backend reads it into a dgCMatrix as before. The bpcells backend
+# leaves it on disk and hands back an IterableMatrix: with `dir` NULL the matrix
+# keeps reading from the source file itself (nothing is copied, but the object is
+# only valid while that file stays put), and with `dir` set it is converted once
+# into BPCells' own bitpacked format, which costs a pass over the data plus disk
+# but is far faster to compute on afterwards and survives saveRDS().
+#
+# Only X, layers and raw go through here. obsm/varm/obsp stay in memory: they are
+# comparatively small, and Seurat needs real matrices for reductions and graphs.
+open_backed_matrix <- function(root, key, backend = "memory", dir = NULL,
+                               name = NULL, dimnames = NULL) {
+  if (backend == "memory") {
+    mat <- read_matrix(root[[key]])
+    if (!is.null(dimnames)) {
+      base::dimnames(mat) <- dimnames
+    }
+    return(mat)
+  }
+  mat <- BPCells::open_matrix_anndata_hdf5(
+    root$get_filename(),
+    group = h5_group_path(root, key)
+  )
+  # The names have to be set before any conversion, so that a converted
+  # directory carries them on disk. BPCells otherwise infers them from the
+  # file's *global* /obs and /var, which for a modality of an .h5mu are not the
+  # modality's own names.
+  if (!is.null(dimnames)) {
+    base::dimnames(mat) <- dimnames
+  }
+  if (is.null(dir)) {
+    return(mat)
+  }
+  target <- file.path(dir, name)
+  if (!dir.exists(dirname(target))) {
+    dir.create(dirname(target), recursive = TRUE)
+  }
+  BPCells::write_matrix_dir(mat, dir = target)
+}
+
 # `obs` and `var` are the tables at root/obs and root/var. Callers that have
 # already read them pass them in: they are also needed to label obsm/varm/obsp,
 # and re-reading /obs is expensive once there are many observations.
 #' @import Matrix
-read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL) {
-  X <- read_matrix(root[['X']])
+read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL,
+                                 backend = "memory", bpcells.dir = NULL) {
+  # A modality of an .h5mu needs its own subdirectory, or every modality would
+  # convert into the same one and collide.
+  matrix_name <- function(key) {
+    slug <- gsub("/", "_", key, fixed = TRUE)
+    if (modalityname == "") slug else file.path(modalityname, slug)
+  }
 
+  # var and obs are read before any matrix, because the matrices are labelled as
+  # they are opened -- see open_backed_matrix() for why that ordering matters.
   if (is.null(var)) {
     var <- read_table(root[['var']])
   }
@@ -321,16 +400,18 @@ read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL) 
   # NOTE: obs names must NOT be prefixed with the modality name here.
   # ReadH5MU takes the intersection of obs names across modalities to build a
   # single Seurat object, so per-modality prefixes would make it empty.
-  colnames(X) <- rownames(obs)
-  rownames(X) <- rownames(var)
+  open_layer <- function(key, feature_names = rownames(var)) {
+    open_backed_matrix(root, key, backend, bpcells.dir, matrix_name(key),
+                       dimnames = list(feature_names, rownames(obs)))
+  }
+
+  X <- open_layer("X")
 
   raw <- NULL
   if ("raw" %in% names(root)) {
     raw <- root[['raw']]
-    raw.X <- read_matrix(raw[['X']])
     raw.var <- read_table(raw[['var']])
-    rownames(raw.X) <- rownames(raw.var)
-    colnames(raw.X) <- colnames(X)
+    raw.X <- open_layer("raw/X", rownames(raw.var))
     if (nrow(raw.X) != nrow(X)) {
       warning(paste0("Only a subset of mod/", modalityname, "/raw/X is loaded, variables (features) that are not present in mod/", modalityname, "/X are discarded."))
       raw.X <- raw.X[rownames(X),]
@@ -341,10 +422,7 @@ read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL) 
   custom_layers <- NULL
   if ("layers" %in% names(root)) {
     layers <- lapply(root[['layers']]$names, function(layer_name) {
-      layer <- read_matrix(root[['layers']][[layer_name]])
-      rownames(layer) <- rownames(X)
-      colnames(layer) <- colnames(X)
-      layer
+      open_layer(paste0("layers/", layer_name))
     })
     names(layers) <- root[['layers']]$names
     custom_layers <- names(layers)[!names(layers) %in% c("counts")]
@@ -447,6 +525,15 @@ read_attr_p <- function(root, attr_name, dim_names = NULL) {
   }
 
   attrp
+}
+
+# Seurat derives embedding column names from the reduction key and warns once per
+# reduction when they are missing. AnnData does not store them, so they are set
+# here to exactly what Seurat would have generated -- same result, minus a
+# warning on every read of a file that has reductions.
+name_embeddings <- function(embeddings, key) {
+  colnames(embeddings) <- paste0(key, seq_len(ncol(embeddings)))
+  embeddings
 }
 
 # For some common reductions,
