@@ -196,4 +196,3 @@ test_that("subset_cells still subsets when the cells differ", {
   expect_equal(colnames(got), wanted)
   expect_equal(ncol(got), 5)
 })
-

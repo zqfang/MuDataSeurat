@@ -58,14 +58,15 @@ subset_cells <- function(assay, cells) {
 
 #' @importFrom hdf5r is_hdf5 H5File
 open_and_check_mudata <- function(filename) {
-    if (readChar(filename, 6) != "MuData") {
-        if (is_hdf5(filename)) {
-            warning("The HDF5 file was not created by MuData tooling, we can't guarantee that everything will work correctly", call.=FALSE)
-        } else (
-            stop("The file is not an HDF5 file", call.=FALSE)
-        )
+  if (readChar(filename, 6) != "MuData") {
+    if (is_hdf5(filename)) {
+      warning("The HDF5 file was not created by MuData tooling, we can't ",
+              "guarantee that everything will work correctly", call. = FALSE)
+    } else {
+      stop("The file is not an HDF5 file", call. = FALSE)
     }
-    H5File$new(filename, mode="r")
+  }
+  H5File$new(filename, mode = "r")
 }
 
 #' @import hdf5r
@@ -73,9 +74,9 @@ open_anndata <- function(filename) {
   # PATH/filename.h5mu/mod/rna => read a single modality from the .h5mu file
   path_fragments <- strsplit(filename, "\\.h5mu")[[1]]
   if (length(path_fragments) == 1) {
-    h5 <- H5File$new(filename, mode="r")
+    h5 <- H5File$new(filename, mode = "r")
   } else {
-    h5 <- H5File$new(paste0(path_fragments[1], ".h5mu"), mode="r")
+    h5 <- H5File$new(paste0(path_fragments[1], ".h5mu"), mode = "r")
     mod_path <- path_fragments[2]
     if (substr(mod_path, 1, 4) != "/mod") {
       mod_path <- paste0("/mod", mod_path)
@@ -90,7 +91,7 @@ missing_on_read <- function(loc, desc = "") {
   if (!is.null(desc) && desc != "") {
     details <- paste0("Seurat does not support ", desc, ".")
   }
-  warning(paste0("Missing on read: ", loc, ". ", details), call.=FALSE)
+  warning(paste0("Missing on read: ", loc, ". ", details), call. = FALSE)
 }
 
 read_table_encv1 <- function(dataset, set_index = TRUE) {
@@ -141,7 +142,7 @@ read_column <- function(column, etype, eversion) {
       warning(paste0("Cannot recognise encoding-version ", eversion))
     }
   } else if (identical(etype, "nullable-integer") ||
-             identical(etype, "nullable-boolean")) {
+               identical(etype, "nullable-boolean")) {
     # AnnData's nullable encodings store the data and a missing-value mask as
     # two datasets in a group. Whatever sits under a set mask bit is padding the
     # writer chose, so it has to be restored to NA rather than read as a value.
@@ -186,7 +187,7 @@ read_table <- function(dataset, set_index = TRUE) {
       indexcol <- dataset_attr$`_index`
     }
 
-    encv <- "0.1.0"  # some encoding version by default
+    encv <- "0.1.0" # some encoding version by default
     if ("encoding-version" %in% names(dataset_attr)) {
       encv <- dataset_attr$`encoding-version`
     }
@@ -202,8 +203,8 @@ read_table <- function(dataset, set_index = TRUE) {
     columns <- colnames(table)
 
     if ((indexcol %in% colnames(table)) && set_index) {
-      rownames(table) <- table[,indexcol,drop=TRUE]
-      table <- table[,!colnames(table) %in% c(indexcol),drop=FALSE]
+      rownames(table) <- table[, indexcol, drop = TRUE]
+      table <- table[, !colnames(table) %in% c(indexcol), drop = FALSE]
     }
 
     # Fix column order
@@ -211,7 +212,7 @@ read_table <- function(dataset, set_index = TRUE) {
       ordered_columns <- dataset_attr[["column-order"]]
       # Do not consider index as a column
       ordered_columns <- ordered_columns[ordered_columns != indexcol]
-      table <- table[,ordered_columns[ordered_columns %in% columns],drop=FALSE]
+      table <- table[, ordered_columns[ordered_columns %in% columns], drop = FALSE]
     }
   } else {
     table <- dataset$read()
@@ -223,8 +224,8 @@ read_table <- function(dataset, set_index = TRUE) {
     }
 
     if ((indexcol %in% colnames(table)) && set_index) {
-      rownames(table) <- table[,indexcol,drop=TRUE]
-      table <- table[,!colnames(table) %in% c(indexcol),drop=FALSE]
+      rownames(table) <- table[, indexcol, drop = TRUE]
+      table <- table[, !colnames(table) %in% c(indexcol), drop = FALSE]
     }
   }
   table
@@ -248,52 +249,52 @@ new_dgCMatrix <- function(i, p, x, dims) {
 #' @import Matrix
 read_matrix <- function(dataset) {
   if ("data" %in% names(dataset) && "indices" %in% names(dataset) && "indptr" %in% names(dataset)) {
-      i <- dataset[["indices"]]$read()
-      p <- dataset[["indptr"]]$read()
-      x <- dataset[["data"]]$read()
+    i <- dataset[["indices"]]$read()
+    p <- dataset[["indptr"]]$read()
+    x <- dataset[["data"]]$read()
 
-      rowwise <- FALSE
-      if ("encoding-type" %in% h5attr_names(dataset)) {
-        rowwise <- h5attr(dataset, "encoding-type") == "csr_matrix"
-      }
-
-      if ("shape" %in% h5attr_names(dataset)) {
-        X_dims <- h5attr(dataset, "shape")
-      } else {
-        X_dims <- c(length(p) - 1, max(i) + 1)
-        if (rowwise) {
-          X_dims <- rev(X_dims)
-        }
-      }
-
-      # The result is always transposed relative to how AnnData stores the
-      # matrix, because AnnData is observations x variables and Seurat is
-      # variables x observations.
-      if (rowwise) {
-        # A CSR matrix of shape (n_obs, n_var) and a CSC matrix of shape
-        # (n_var, n_obs) have identical indptr/indices/data buffers, so the
-        # transpose is a reinterpretation of what was just read rather than a
-        # conversion. Going through sparseMatrix() instead would convert CSR to
-        # CSC and then Matrix::t() would convert it straight back.
-        X <- new_dgCMatrix(i, p, x, rev(X_dims))
-        if (!is.null(X)) {
-          return(X)
-        }
-        X <- Matrix::sparseMatrix(j=i, p=p, x=x, dims=X_dims, index1=FALSE)
-      } else {
-        # CSC input does need a real transpose, but it can at least be built
-        # without sparseMatrix()'s extra pass.
-        X <- new_dgCMatrix(i, p, x, X_dims)
-        if (is.null(X)) {
-          X <- Matrix::sparseMatrix(i=i, p=p, x=x, dims=X_dims, index1=FALSE)
-        }
-      }
-
-      Matrix::t(X)
-
-    } else {
-      dataset$read()
+    rowwise <- FALSE
+    if ("encoding-type" %in% h5attr_names(dataset)) {
+      rowwise <- h5attr(dataset, "encoding-type") == "csr_matrix"
     }
+
+    if ("shape" %in% h5attr_names(dataset)) {
+      X_dims <- h5attr(dataset, "shape")
+    } else {
+      X_dims <- c(length(p) - 1, max(i) + 1)
+      if (rowwise) {
+        X_dims <- rev(X_dims)
+      }
+    }
+
+    # The result is always transposed relative to how AnnData stores the
+    # matrix, because AnnData is observations x variables and Seurat is
+    # variables x observations.
+    if (rowwise) {
+      # A CSR matrix of shape (n_obs, n_var) and a CSC matrix of shape
+      # (n_var, n_obs) have identical indptr/indices/data buffers, so the
+      # transpose is a reinterpretation of what was just read rather than a
+      # conversion. Going through sparseMatrix() instead would convert CSR to
+      # CSC and then Matrix::t() would convert it straight back.
+      X <- new_dgCMatrix(i, p, x, rev(X_dims))
+      if (!is.null(X)) {
+        return(X)
+      }
+      X <- Matrix::sparseMatrix(j = i, p = p, x = x, dims = X_dims, index1 = FALSE)
+    } else {
+      # CSC input does need a real transpose, but it can at least be built
+      # without sparseMatrix()'s extra pass.
+      X <- new_dgCMatrix(i, p, x, X_dims)
+      if (is.null(X)) {
+        X <- Matrix::sparseMatrix(i = i, p = p, x = x, dims = X_dims, index1 = FALSE)
+      }
+    }
+
+    Matrix::t(X)
+
+  } else {
+    dataset$read()
+  }
 }
 
 check_bpcells_dir <- function(backend, bpcells.dir) {
@@ -371,7 +372,7 @@ open_backed_matrix <- function(root, key, backend = "memory", dir = NULL,
 # already read them pass them in: they are also needed to label obsm/varm/obsp,
 # and re-reading /obs is expensive once there are many observations.
 #' @import Matrix
-read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL,
+read_layers_to_assay <- function(root, modalityname = "", obs = NULL, var = NULL,
                                  backend = "memory", bpcells.dir = NULL) {
   # A modality of an .h5mu needs its own subdirectory, or every modality would
   # convert into the same one and collide.
@@ -383,19 +384,20 @@ read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL,
   # var and obs are read before any matrix, because the matrices are labelled as
   # they are opened -- see open_backed_matrix() for why that ordering matters.
   if (is.null(var)) {
-    var <- read_table(root[['var']])
+    var <- read_table(root[["var"]])
   }
   if (any(grepl("_", rownames(var)))) {
     example_which <- grep("_", rownames(var))[1]
     example_before <- rownames(var)[example_which]
     rownames(var) <- gsub("_", "-", rownames(var))
     example_after <- rownames(var)[example_which]
-    warning(paste0("The var_names from modality ", modalityname, " have been renamed as feature names cannot contain '_'.",
-      " E.g. ", example_before, " -> ", example_after, "."))
+    warning(paste0("The var_names from modality ", modalityname,
+                   " have been renamed as feature names cannot contain '_'.",
+                   " E.g. ", example_before, " -> ", example_after, "."))
   }
 
   if (is.null(obs)) {
-    obs <- read_table(root[['obs']])
+    obs <- read_table(root[["obs"]])
   }
   # NOTE: obs names must NOT be prefixed with the modality name here.
   # ReadH5MU takes the intersection of obs names across modalities to build a
@@ -409,25 +411,28 @@ read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL,
 
   raw <- NULL
   if ("raw" %in% names(root)) {
-    raw <- root[['raw']]
-    raw.var <- read_table(raw[['var']])
+    raw <- root[["raw"]]
+    raw.var <- read_table(raw[["var"]])
     raw.X <- open_layer("raw/X", rownames(raw.var))
     if (nrow(raw.X) != nrow(X)) {
-      warning(paste0("Only a subset of mod/", modalityname, "/raw/X is loaded, variables (features) that are not present in mod/", modalityname, "/X are discarded."))
-      raw.X <- raw.X[rownames(X),]
+      warning(paste0("Only a subset of mod/", modalityname, "/raw/X is loaded, ",
+                     "variables (features) that are not present in mod/",
+                     modalityname, "/X are discarded."))
+      raw.X <- raw.X[rownames(X), ]
     }
   }
 
   layers <- NULL
   custom_layers <- NULL
   if ("layers" %in% names(root)) {
-    layers <- lapply(root[['layers']]$names, function(layer_name) {
+    layers <- lapply(root[["layers"]]$names, function(layer_name) {
       open_layer(paste0("layers/", layer_name))
     })
-    names(layers) <- root[['layers']]$names
+    names(layers) <- root[["layers"]]$names
     custom_layers <- names(layers)[!names(layers) %in% c("counts")]
     if (length(custom_layers) > 0) {
-      missing_on_read(paste0("some of mod/", modalityname, "/layers"), "custom layers, unless labeled 'counts'")
+      missing_on_read(paste0("some of mod/", modalityname, "/layers"),
+                      "custom layers, unless labeled 'counts'")
     }
   }
 
@@ -448,7 +453,7 @@ read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL,
     if (!is.null(raw)) {
       if (counts_as_layer) {
         # 4
-        assay <- SeuratObject::CreateAssay5Object(counts = layers[['counts']])
+        assay <- SeuratObject::CreateAssay5Object(counts = layers[["counts"]])
         SeuratObject::LayerData(assay, "data") <- raw.X
         SeuratObject::LayerData(assay, "scale.data") <- X
       } else {
@@ -458,7 +463,7 @@ read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL,
       }
     } else {
       # 3
-      assay <- SeuratObject::CreateAssay5Object(counts = layers[['counts']])
+      assay <- SeuratObject::CreateAssay5Object(counts = layers[["counts"]])
       SeuratObject::LayerData(assay, "data") <- X
     }
   }
@@ -485,7 +490,8 @@ read_attr_m <- function(root, attr_name, dim_names = NULL) {
     attrm <- lapply(names(root[[attrm_name]]), function(space) {
       dset <- root[[attrm_name]][[space]]
       if (dset$attr_exists("encoding-type") && h5attr(dset, "encoding-type") == "dataframe") {
-        missing_on_read(paste0(root$get_obj_name(), attrm_name, "/", space), "additional metadata dataframes")
+        missing_on_read(paste0(root$get_obj_name(), attrm_name, "/", space),
+                        "additional metadata dataframes")
         mx <- NULL
       } else {
         mx <- t(read_matrix(dset))

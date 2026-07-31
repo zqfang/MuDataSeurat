@@ -2,7 +2,7 @@ library(Seurat)
 library(MuDataSeurat)
 library(Matrix)
 library(hdf5r)
-library(fs)  # for file_temp()
+library(fs) # for file_temp()
 
 # Sparse matrix storage round-trips.
 # Seurat stores features x cells; AnnData stores obs x var, so the shape

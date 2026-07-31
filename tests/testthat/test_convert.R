@@ -2,7 +2,7 @@ library(Seurat)
 library(SeuratObject)
 library(MuDataSeurat)
 library(Matrix)
-library(fs)  # for file_temp()
+library(fs) # for file_temp()
 
 # ConvertToSeuratBPCells()/ConvertToSeuratInMemory() move an object's layers
 # between memory and BPCells' on-disk format, leaving everything else about the

@@ -20,7 +20,8 @@ finalize_mudata <- function(h5) {
   filename <- h5$get_filename()
   h5$close_all()
   h5 <- file(filename, "r+b")
-  writeChar(paste0("MuData (format-version=", .mudataversion, ";creator=", .name, ";creator-version=", .version, ")"), h5)
+  writeChar(paste0("MuData (format-version=", .mudataversion, ";creator=",
+                   .name, ";creator-version=", .version, ")"), h5)
   close(h5)
 }
 
@@ -40,7 +41,8 @@ finalize_anndata <- function(h5, internal = FALSE) {
   filename <- h5$get_filename()
   h5$close_all()
   h5 <- file(filename, "r+b")
-  writeChar(paste0("anndata (format-version=", .anndataversion, ";creator=", .name, ";creator-version=", .version, ")"), h5)
+  writeChar(paste0("anndata (format-version=", .anndataversion, ";creator=",
+                   .name, ";creator-version=", .version, ")"), h5)
   close(h5)
 }
 
@@ -67,7 +69,7 @@ resolve_compression <- function(compression) {
     if (is.na(level) || level < 0L || level > 9L) invalid()
   }
   if (is.na(level)) {
-    return(list())            # hdf5r's own defaults: chunked, gzip
+    return(list()) # hdf5r's own defaults: chunked, gzip
   }
   if (level == 0L) {
     return(list(chunk_dims = NULL))
@@ -167,7 +169,9 @@ write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix", d
       values[is.na(values)] <- as.vector(0, mode = typeof(mat))
       write_matrix(grp, "values", values, ds_args = ds_args)
       write_matrix(grp, "mask", is.na(mat), ds_args = ds_args)
-      write_attribute(grp, "encoding-type", ifelse(is.logical(mat), "nullable-boolean", "nullable-integer"))
+      write_attribute(grp, "encoding-type",
+                      ifelse(is.logical(mat), "nullable-boolean",
+                             "nullable-integer"))
       write_attribute(grp, "encoding-version", "0.1.0")
     }
   } else if (is.factor(mat)) {
@@ -413,7 +417,9 @@ sanitize_h5_names <- function(names) {
 
 write_data_frame <- function(parent, key, attr_df, ds_args = list()) {
   grp <- parent$create_group(key)
-  if (!is.data.frame(attr_df)) { # row names only. Creating a data.frame with duplicated row.names is not possible
+  # Row names only: creating a data.frame with duplicated row.names is not
+  # possible.
+  if (!is.data.frame(attr_df)) {
     attr_df <- data.frame("_index" = attr_df, check.names = FALSE)
     attr_columns <- character()
   } else {
@@ -442,8 +448,8 @@ write_data_frame <- function(parent, key, attr_df, ds_args = list()) {
 
     # Check if the column is of (Date, POSIXct/POSIXt)
     if (inherits(attr_df[[i]], "Date") ||
-      inherits(attr_df[[i]], "POSIXct") ||
-      inherits(attr_df[[i]], "POSIXt")) {
+          inherits(attr_df[[i]], "POSIXct") ||
+          inherits(attr_df[[i]], "POSIXt")) {
       message("Column ", col, " is of datetime type.")
       attr_df[[i]] <- as.character(attr_df[[i]])
     }
@@ -465,7 +471,8 @@ write_data_frame <- function(parent, key, attr_df, ds_args = list()) {
     write_attribute(grp, "column-order", attr_columns, scalar = FALSE)
   } else {
     # When there are no columns, null buffer can't be written to a file.
-    grp$create_attr("column-order", dtype = h5types$H5T_NATIVE_DOUBLE, space = H5S$new("simple", 0, 0))
+    grp$create_attr("column-order", dtype = h5types$H5T_NATIVE_DOUBLE,
+                    space = H5S$new("simple", 0, 0))
   }
 }
 

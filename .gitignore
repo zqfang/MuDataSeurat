@@ -39,3 +39,4 @@ vignettes/*.pdf
 .Renviron
 docs
 CLAUDE.md
+.lintr

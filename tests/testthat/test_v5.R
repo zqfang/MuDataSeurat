@@ -3,7 +3,7 @@ library(SeuratObject)
 library(MuDataSeurat)
 library(Matrix)
 library(hdf5r)
-library(fs)  # for file_temp()
+library(fs) # for file_temp()
 
 # Reading always builds a Seurat v5 assay. The X/raw/layers cases enumerated in
 # read_layers_to_assay() map onto v5 layers of the same name, and feature

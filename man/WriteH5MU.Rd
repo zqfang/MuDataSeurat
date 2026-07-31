@@ -40,7 +40,8 @@ Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
 Disk-backed (BPCells) matrices support \code{csr_matrix} only, as they
 cannot be transposed without being rewritten in full.}
 
-\item{overwrite}{Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).}
+\item{overwrite}{Boolean value to indicate if to overwrite the \code{file}
+if it exists (\code{TRUE} by default).}
 
 \item{compression}{Compression applied to the HDF5 datasets: \code{"gzip"}
 (the default, and what previous versions always did), \code{"none"}, or an
@@ -53,5 +54,6 @@ Save \code{\link{Seurat}} object to .h5mu file.
 The behavior of this function if NAs are present is undefined.
 }
 \details{
-The following slots are saved: count matrices (`@counts` and `@data`), `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
+The following slots are saved: count matrices (`@counts` and `@data`),
+`@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
 }

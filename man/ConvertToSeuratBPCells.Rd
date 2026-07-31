@@ -54,7 +54,7 @@ from the source \code{.h5ad} -- into a self-contained directory.
 \dontrun{
 seu <- ConvertToSeuratBPCells(seu, dir = "seu_bpcells",
                               type = c(counts = "uint32_t"))
-saveRDS(seu, "seu.rds")  # the matrices stay in seu_bpcells/
+saveRDS(seu, "seu.rds") # the matrices stay in seu_bpcells/
 }
 
 }

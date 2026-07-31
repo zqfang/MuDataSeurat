@@ -32,31 +32,34 @@ ReadH5AD <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
   # X
   # obs and var have already been read above; passing them in keeps /obs from
   # being read once here and once again for each of obsm/obsp below.
-  assay <- read_layers_to_assay(h5, obs = obs, var = var,
-                                backend = backend, bpcells.dir = bpcells.dir)
+  assay <- read_layers_to_assay(h5,
+    obs = obs, var = var,
+    backend = backend, bpcells.dir = bpcells.dir
+  )
 
   # obsm
-  obsm <- read_attr_m(h5, 'obs', rownames(obs))
+  obsm <- read_attr_m(h5, "obs", rownames(obs))
 
   # varm
-  varm <- read_attr_m(h5, 'var', rownames(var))
+  varm <- read_attr_m(h5, "var", rownames(var))
 
   # obsp
-  obsp <- read_attr_p(h5, 'obs', rownames(obs))
+  obsp <- read_attr_p(h5, "obs", rownames(obs))
 
   # If there are var pairs, there's no place to store it
   # in the Seurat object
-  # var_pairs <- read_attr_p(h5, 'var')
   var_pairs_names <- c()
-  if ("varp" %in% names(h5))
+  if ("varp" %in% names(h5)) {
     var_pairs_names <- names(h5[["varp"]])
-  if (!is.null(var_pairs_names) && !isFALSE(var_pairs_names) && length(var_pairs_names) > 0)
+  }
+  if (!is.null(var_pairs_names) && !isFALSE(var_pairs_names) && length(var_pairs_names) > 0) {
     missing_on_read("/varp", "pairwise annotation of variables")
+  }
 
   # Create a Seurat object
   # If read from .h5mu modality, give an assay name
   path_fragments <- strsplit(file, "\\.h5mu")[[1]]
-  assay_name <- "RNA"  # Seurat's own default
+  assay_name <- "RNA" # Seurat's own default
   if (length(path_fragments) == 2) {
     mod_path_fragments <- strsplit(path_fragments[2], "\\/")[[1]]
     assay_name <- mod_path_fragments[length(mod_path_fragments)]
@@ -81,11 +84,11 @@ ReadH5AD <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
 
   # Add embeddings
   for (emb in names(obsm)) {
-    emb_name <- gsub('X_', '', emb)
+    emb_name <- gsub("X_", "", emb)
 
     maybe_loadings <- matrix()
     if (emb %in% names(OBSM2VARM)) {
-      varm_key = OBSM2VARM[[emb]]
+      varm_key <- OBSM2VARM[[emb]]
       if (varm_key %in% names(varm)) {
         maybe_loadings <- varm[[varm_key]]
       }
@@ -101,7 +104,10 @@ ReadH5AD <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
     }
 
     srt[[emb_name]] <- Seurat::CreateDimReducObject(
-      embeddings = name_embeddings(obsm[[emb]][rownames(obs),,drop=FALSE], paste0(emb_name, "_")),
+      embeddings = name_embeddings(
+        obsm[[emb]][rownames(obs), , drop = FALSE],
+        paste0(emb_name, "_")
+      ),
       loadings = maybe_loadings,
       key = paste0(emb_name, "_"),
       assay = Seurat::DefaultAssay(srt),
@@ -152,98 +158,111 @@ ReadH5MU <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
   metadata <- read_table(h5[["obs"]])
 
   # NOTE: there's no global feature metadata in the Seurat object
-  ft_metadata <- tryCatch({
-      read_table(h5[["var"]])
-    },
+  ft_metadata <- tryCatch(
+    read_table(h5[["var"]]),
     error = function(err) {
       warning(err)
       read_table(h5[["var"]], set_index = FALSE)
     }
   )
 
-  if (ncol(ft_metadata) > 0)
-    missing_on_read("/var", paste0("global variables metadata (", paste(colnames(ft_metadata), collapse = ", "), ")"))
+  if (ncol(ft_metadata) > 0) {
+    missing_on_read("/var", paste0(
+      "global variables metadata (",
+      paste(colnames(ft_metadata), collapse = ", "), ")"
+    ))
+  }
 
   # Get (multimodal) embeddings
-  embeddings <- read_attr_m(h5, 'obs', rownames(metadata))
+  embeddings <- read_attr_m(h5, "obs", rownames(metadata))
   # If obs->mod mappings are in the file, dismiss them
   embeddings <- embeddings[!names(embeddings) %in% assays]
 
   # Get (multimodal) loadings
   # NOTE: features can be set as row names only if they are unique
-  loadings <- read_attr_m(h5, 'var', rownames(ft_metadata))
+  loadings <- read_attr_m(h5, "var", rownames(ft_metadata))
 
   # Get obs pairs
-  obs_pairs <- read_attr_p(h5, 'obs', rownames(metadata))
+  obs_pairs <- read_attr_p(h5, "obs", rownames(metadata))
 
   # If there are var pairs, there's no place to store it
   # in the Seurat object
   var_pairs_names <- c()
-  if ("varp" %in% names(h5))
+  if ("varp" %in% names(h5)) {
     var_pairs_names <- names(h5[["varp"]])
-  if (!is.null(var_pairs_names) && !isFALSE(var_pairs_names) && length(var_pairs_names) > 0)
+  }
+  if (!is.null(var_pairs_names) && !isFALSE(var_pairs_names) && length(var_pairs_names) > 0) {
     missing_on_read("/varp", "pairwise annotation of variables")
+  }
 
   # mod/.../obs and mod/.../var
   # These are read up front because the assay, obsm, varm and obsp of a modality
   # all need them; reading them once here rather than inside each of those steps
   # avoids re-reading every modality's /obs three more times.
   mod_obs <- lapply(assays, function(mod) {
-    read_table(h5[['mod']][[mod]][['obs']])
+    read_table(h5[["mod"]][[mod]][["obs"]])
   })
   names(mod_obs) <- assays
 
   mod_var <- lapply(assays, function(mod) {
-    read_table(h5[['mod']][[mod]][['var']])
+    read_table(h5[["mod"]][[mod]][["var"]])
   })
   names(mod_var) <- assays
 
   # mod/.../X, raw, and layers
   modalities <- lapply(assays, function(mod) {
-   read_layers_to_assay(h5[['mod']][[mod]], mod, obs = mod_obs[[mod]], var = mod_var[[mod]],
-                        backend = backend, bpcells.dir = bpcells.dir)
+    read_layers_to_assay(h5[["mod"]][[mod]], mod,
+      obs = mod_obs[[mod]], var = mod_var[[mod]],
+      backend = backend, bpcells.dir = bpcells.dir
+    )
   })
   names(modalities) <- assays
 
   # mod/.../obsm
   mod_obsm <- lapply(assays, function(mod) {
-    read_attr_m(h5[['mod']][[mod]], 'obs', rownames(mod_obs[[mod]]))
+    read_attr_m(h5[["mod"]][[mod]], "obs", rownames(mod_obs[[mod]]))
   })
   names(mod_obsm) <- assays
 
   # mod/.../varm
   mod_varm <- lapply(assays, function(mod) {
-    read_attr_m(h5[['mod']][[mod]], 'var', rownames(mod_var[[mod]]))
+    read_attr_m(h5[["mod"]][[mod]], "var", rownames(mod_var[[mod]]))
   })
   names(mod_varm) <- assays
 
   # mod/.../obsp
   mod_obsp <- lapply(assays, function(mod) {
-    read_attr_p(h5[['mod']][[mod]], 'obs', rownames(mod_obs[[mod]]))
+    read_attr_p(h5[["mod"]][[mod]], "obs", rownames(mod_obs[[mod]]))
   })
   names(mod_obsp) <- assays
 
   # If there are var pairs in individual modalities,
   # there's no place to store it in the Seurat object.
   for (mod in assays) {
-    if ("varp" %in% names(h5[['mod']][[mod]])) {
-      if (length(h5[['mod']][[mod]][['varp']]) > 0) {
+    if ("varp" %in% names(h5[["mod"]][[mod]])) {
+      if (length(h5[["mod"]][[mod]][["varp"]]) > 0) {
         missing_on_read(paste0("/mod", mod, "/varp"), "pairwise annotation of variables")
       }
     }
   }
 
   var_pairs_names <- c()
-  if ("varp" %in% names(h5))
+  if ("varp" %in% names(h5)) {
     var_pairs_names <- names(h5[["varp"]])
-  if (!is.null(var_pairs_names) && !isFALSE(var_pairs_names) && length(var_pairs_names) > 0)
+  }
+  if (!is.null(var_pairs_names) && !isFALSE(var_pairs_names) && length(var_pairs_names) > 0) {
     missing_on_read("/varp", "pairwise annotation of variables")
+  }
 
   # Only common observations can be read
   obs_names <- Reduce(intersect, lapply(modalities, colnames))
   mods_n_obs <- unique(vapply(modalities, ncol, 1))
   if (length(mods_n_obs) > 1 || mods_n_obs[1] != length(obs_names)) {
-    warning("Only the intersection of observations (samples) is loaded. Observations that are not present in all the modalities (assays) are discarded.")
+    warning(
+      "Only the intersection of observations (samples) is loaded. ",
+      "Observations that are not present in all the modalities ",
+      "(assays) are discarded."
+    )
   }
 
   # Create a Seurat object
@@ -278,7 +297,7 @@ ReadH5MU <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
 
     # Specify highly variable features
     if ("highly_variable" %in% colnames(metafeatures) &&
-        is.logical(metafeatures$highly_variable)) {
+          is.logical(metafeatures$highly_variable)) {
       Seurat::VariableFeatures(srt[[modality]]) <-
         rownames(metafeatures)[metafeatures$highly_variable]
     }
@@ -286,7 +305,7 @@ ReadH5MU <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
 
   # Add joint embeddings
   for (emb in names(embeddings)) {
-    emb_name <- toupper(gsub('X_', '', emb))
+    emb_name <- toupper(gsub("X_", "", emb))
 
     maybe_loadings <- matrix()
     varm_key <- emb_name
@@ -307,11 +326,14 @@ ReadH5MU <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
     }
 
     srt[[emb_name]] <- Seurat::CreateDimReducObject(
-      embeddings = name_embeddings(embeddings[[emb]][obs_names,,drop=FALSE], paste0(emb_name, "_")),
+      embeddings = name_embeddings(
+        embeddings[[emb]][obs_names, , drop = FALSE],
+        paste0(emb_name, "_")
+      ),
       loadings = maybe_loadings,
       key = paste0(emb_name, "_"),
       stdev = emb_stdev,
-      assay = Seurat::DefaultAssay(srt),  # this is not true but an existing assay must be provided
+      assay = Seurat::DefaultAssay(srt), # this is not true but an existing assay must be provided
     )
   }
 
@@ -328,20 +350,24 @@ ReadH5MU <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
   for (mod in names(mod_obsm)) {
     mod_embeddings <- mod_obsm[[mod]]
     for (emb in names(mod_embeddings)) {
-      emb_name <- gsub('X_', '', emb)
-      if (!startsWith(emb_name, mod))
+      emb_name <- gsub("X_", "", emb)
+      if (!startsWith(emb_name, mod)) {
         emb_name <- toupper(emb_name)
+      }
       modemb_name <- emb_name
-      if (!unique_emb)
+      if (!unique_emb) {
         modemb_name <- paste(mod, emb_name, sep = "")
+      }
       # Embeddings keys will have to follow the format alphanumericcharacters_, e.g. RNAPCA_.
 
       maybe_loadings <- matrix()
       varm_key <- emb_name
-      if (emb %in% names(OBSM2VARM))
-        varm_key = OBSM2VARM[[emb]]
-      if (hasName(mod_varm[[mod]], varm_key))
+      if (emb %in% names(OBSM2VARM)) {
+        varm_key <- OBSM2VARM[[emb]]
+      }
+      if (hasName(mod_varm[[mod]], varm_key)) {
         maybe_loadings <- mod_varm[[mod]][[varm_key]]
+      }
 
       emb_stdev <- numeric()
       h5_mod <- h5[["mod"]][[mod]]
@@ -354,7 +380,10 @@ ReadH5MU <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
       }
 
       srt[[modemb_name]] <- Seurat::CreateDimReducObject(
-        embeddings = name_embeddings(mod_embeddings[[emb]][obs_names,,drop=FALSE], paste0(modemb_name, "_")),
+        embeddings = name_embeddings(
+          mod_embeddings[[emb]][obs_names, , drop = FALSE],
+          paste0(modemb_name, "_")
+        ),
         loadings = maybe_loadings,
         key = paste0(modemb_name, "_"),
         stdev = emb_stdev,
@@ -368,7 +397,7 @@ ReadH5MU <- function(file, backend = c("memory", "bpcells"), bpcells.dir = NULL)
   # Only take into account common observations
   if (length(obs_pairs) > 0) {
     srt@graphs <- lapply(obs_pairs, function(graph) {
-      graph[obs_names,obs_names,drop=FALSE]
+      graph[obs_names, obs_names, drop = FALSE]
     })
     names(srt@graphs) <- names(obs_pairs)
   }

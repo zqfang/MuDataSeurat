@@ -19,12 +19,13 @@ vignette: >
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
-collapse = TRUE,
-comment = "#>"
+  collapse = TRUE,
+  comment = "#>"
 )
 
-if (.Platform$OS.type == "windows")
-    knitr::opts_chunk$set(crop=NULL)
+if (.Platform$OS.type == "windows") {
+  knitr::opts_chunk$set(crop = NULL)
+}
 ```
 
 ## Introduction
@@ -57,7 +58,10 @@ This example dataset can be downloaded as a file in the H5MU format, which is th
 # Download file into a temporary directory
 fdir <- tempdir()
 mdata_path <- file.path(fdir, "minipbcite.h5mu")
-download.file(url="https://github.com/gtca/h5xx-datasets/blob/main/datasets/minipbcite.h5mu?raw=true", destfile=mdata_path, mode="wb")
+download.file(
+  url = "https://github.com/gtca/h5xx-datasets/blob/main/datasets/minipbcite.h5mu?raw=true",
+  destfile = mdata_path, mode = "wb"
+)
 
 pbmc <- ReadH5MU(mdata_path)
 pbmc
@@ -80,14 +84,14 @@ Cells can be coloured by expression level and plotted in a selected latent space
 
 ```{r}
 DefaultAssay(pbmc) <- "rna"
-DimPlot(pbmc, reduction = "MOFA_UMAP", label = TRUE, repel = TRUE) + NoLegend() + 
-FeaturePlot(pbmc, features = "MS4A1", reduction = "MOFA_UMAP")
+DimPlot(pbmc, reduction = "MOFA_UMAP", label = TRUE, repel = TRUE) + NoLegend() +
+  FeaturePlot(pbmc, features = "MS4A1", reduction = "MOFA_UMAP")
 ```
 
 RNA expression in different celltypes (genes in the subset were pre-selected to be celltype markers):
 
 ```{r}
-rna_features <- c("IRF8", "FCGR3A", "CD14", "MS4A1", "IGHD", 
+rna_features <- c("IRF8", "FCGR3A", "CD14", "MS4A1", "IGHD",
                   "KLRC2", "NKG7", "CCL5", "CD8B", "IL2RA", "IL7R")
 DotPlot(pbmc, features = rna_features) + RotatedAxis()
 ```
@@ -97,9 +101,9 @@ Naïve/memory T cell surface protein expression:
 ```{r}
 DefaultAssay(pbmc) <- "prot"
 prot_features <- c("CD3-TotalSeqB", "CD45RA-TotalSeqB", "CD45RO-TotalSeqB")
-t_cells <- c("CD4+ naïve T", "CD4+ memory T", "Treg", 
+t_cells <- c("CD4+ naïve T", "CD4+ memory T", "Treg",
              "CD8+ naïve T", "CD8+ memory T")
-VlnPlot(pbmc[,pbmc@meta.data$celltype %in% t_cells], 
+VlnPlot(pbmc[, pbmc@meta.data$celltype %in% t_cells],
         features = prot_features, ncol = 3)
 ```
 
@@ -110,7 +114,8 @@ Since `pbmc` is a Seurat object, we can use corresponding processing and analysi
 ```{r}
 pbmc <- FindNeighbors(pbmc, reduction = "MOFA", dims = 1:30)
 
-pbmc <- RunUMAP(pbmc, reduction = "MOFA", dims = 1:30, reduction.key = "rUMAP_", reduction.name = "rUMAP")
+pbmc <- RunUMAP(pbmc, reduction = "MOFA", dims = 1:30,
+                reduction.key = "rUMAP_", reduction.name = "rUMAP")
 
 DimPlot(pbmc, reduction = "rUMAP")
 ```

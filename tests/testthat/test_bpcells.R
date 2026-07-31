@@ -2,7 +2,7 @@ library(Seurat)
 library(MuDataSeurat)
 library(Matrix)
 library(hdf5r)
-library(fs)  # for file_temp()
+library(fs) # for file_temp()
 
 # Disk-backed (BPCells) matrices are written by streaming a block of cells at a
 # time instead of materialising a dgCMatrix. The streaming writer is exercised
@@ -18,7 +18,7 @@ var_names <- paste("var", seq_len(nvar), sep = "-")
 make_counts <- function() {
   set.seed(42)
   x <- rnbinom(n = nobs * nvar, prob = .9, size = 10)
-  x <- Matrix(matrix(x, ncol = nobs), sparse = TRUE)  # => dgCMatrix, var x obs
+  x <- Matrix(matrix(x, ncol = nobs), sparse = TRUE) # => dgCMatrix, var x obs
   colnames(x) <- obs_names
   rownames(x) <- var_names
   x

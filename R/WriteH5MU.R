@@ -1,8 +1,16 @@
 #' @rdname WriteH5MU
-setGeneric("WriteH5MU", function(object, file, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE, compression = "gzip") standardGeneric("WriteH5MU"))
+setGeneric("WriteH5MU", function(object, file, scale.data = FALSE,
+                                 sparse.type = "csr_matrix", overwrite = TRUE,
+                                 compression = "gzip") {
+  standardGeneric("WriteH5MU")
+})
 
 #' @rdname WriteH5AD
-setGeneric("WriteH5AD", function(object, file, assay = NULL, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE, compression = "gzip") standardGeneric("WriteH5AD"))
+setGeneric("WriteH5AD", function(object, file, assay = NULL, scale.data = FALSE,
+                                 sparse.type = "csr_matrix", overwrite = TRUE,
+                                 compression = "gzip") {
+  standardGeneric("WriteH5AD")
+})
 
 #' A helper function to write a modality (an assay) to an .h5mu file
 #'
@@ -10,7 +18,8 @@ setGeneric("WriteH5AD", function(object, file, assay = NULL, scale.data=FALSE, s
 #'
 #' @import hdf5r methods
 #' @importFrom Matrix t
-WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", global = FALSE, ds_args = list()) {
+WriteH5ADHelper <- function(object, assay, root, sparse.type = "csr_matrix",
+                            global = FALSE, ds_args = list()) {
 
   mod_object <- Seurat::GetAssay(object, assay)
 
@@ -25,7 +34,7 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
   write_data_frame(root, "obs", obs, ds_args = ds_args)
 
   # .var
-  if(inherits(mod_object, "Assay5")) {
+  if (inherits(mod_object, "Assay5")) {
     var.features <- mod_object@meta.data$var.features
     var.features <- var.features[!is.na(var.features)]
     var_names <- rownames(mod_object)
@@ -38,9 +47,9 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
       , !colnames(meta.features) %in% c("var.features", "var.features.rank"),
       drop = FALSE
     ]
-  }else{
+  } else {
     # assay v4
-    var.features = mod_object@var.features
+    var.features <- mod_object@var.features
     meta.features <- mod_object@meta.features
     var_names <- rownames(mod_object@meta.features)
 
@@ -49,10 +58,11 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
   # Define highly variable features, if any
   if (length(var.features) > 0) {
     meta.features$highly_variable <- rownames(meta.features) %in% var.features
-    message(paste0(assay, " Added .var['highly_variable'] with highly variable features to meta.features data"))
+    message(paste0(assay, " Added .var['highly_variable'] with highly ",
+                   "variable features to meta.features data"))
   }
-  
-  
+
+
   write_data_frame(root, "var", meta.features, ds_args = ds_args)
 
   # .X, .layers['counts']
@@ -80,7 +90,7 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
     }
     # assay v5
     if (inherits(mod_object, "Assay5") && x_name %in% names(mod_object@layers)) {
-      x <- Seurat::GetAssayData(mod_object, layer=x_name, assay=assay)
+      x <- Seurat::GetAssayData(mod_object, layer = x_name, assay = assay)
       if (nrow(x) == 0 || ncol(x) == 0)
         x <- NULL
     }
@@ -109,13 +119,13 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
   write_attribute(uns_group, "encoding-version", "0.1.0")
 
   # reductions -> .obsm
-  if ('reductions' %in% slotNames(object)) {
+  if ("reductions" %in% slotNames(object)) {
     obsm_group <- root$create_group("obsm")
     write_attribute(obsm_group, "encoding-type", "dict")
-    write_attribute(obsm_group, "encoding-version", "0.1.0") 
+    write_attribute(obsm_group, "encoding-version", "0.1.0")
     varm_group <- root$create_group("varm")
     write_attribute(varm_group, "encoding-type", "dict")
-    write_attribute(varm_group, "encoding-version", "0.1.0") 
+    write_attribute(varm_group, "encoding-version", "0.1.0")
 
     for (red_name in names(object@reductions)) {
       red <- object@reductions[[red_name]]
@@ -149,9 +159,9 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
         # sanitized the same way before comparing it against the key.
         if (grepl(tolower(emb_assay), tolower(red_name), fixed = TRUE) ||
             grepl(tolower(emb_assay), tolower(red@key), fixed = TRUE) ||
-            grepl(tolower(red_name), tolower(red@key), fixed = TRUE)  ||
-            grepl(tolower(gsub('[^[:alnum:]]', '', red_name)), tolower(red@key), fixed = TRUE)
-            ) {
+            grepl(tolower(red_name), tolower(red@key), fixed = TRUE) ||
+            grepl(tolower(gsub("[^[:alnum:]]", "", red_name)), tolower(red@key), fixed = TRUE)
+        ) {
           modality_specific <- TRUE
         }
 
@@ -163,8 +173,8 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
 
       if (!modality_specific) {
         warning(paste0("Reduction ", red_name, " (key ", red@key, ", assay.used ",
-          emb_assay, ") was not recognised as specific to assay ", assay,
-          " and will not be written to .obsm."))
+                       emb_assay, ") was not recognised as specific to assay ", assay,
+                       " and will not be written to .obsm."))
         next
       }
 
@@ -174,20 +184,22 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
       if (!is.null(loadings) && ncol(loadings) == ncol(red)) {
         varm_key <- red_name
         if (paste0("X_", red_name) %in% names(OBSM2VARM)) {
-          varm_key = OBSM2VARM[[paste0("X_", red_name)]]
+          varm_key <- OBSM2VARM[[paste0("X_", red_name)]]
         }
 
         # If only a subset of features was used,
         # this has to be accounted for
         if (nrow(loadings) < nrow(meta.features)) {
           warning(paste0("Loadings for ", red_name, " are computed only for some features.",
-            " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
+                         " For it, an array with full var dimension will be ",
+                         "recorded as it has to be match the var dimension ",
+                         "of the data."))
           all_loadings <- matrix(
             ncol = ncol(loadings),
             nrow = nrow(meta.features)
           )
           rownames(all_loadings) <- rownames(meta.features)
-          all_loadings[rownames(loadings),] <- loadings
+          all_loadings[rownames(loadings), ] <- loadings
         } else {
           all_loadings <- loadings
         }
@@ -208,14 +220,14 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
   }
 
   # graphs -> .obsp
-  if ('graphs' %in% slotNames(object)) {
+  if ("graphs" %in% slotNames(object)) {
     obsp_group <- root$create_group("obsp")
     write_attribute(obsp_group, "encoding-type", "dict")
-    write_attribute(obsp_group, "encoding-version", "0.1.0")  
+    write_attribute(obsp_group, "encoding-version", "0.1.0")
     for (graph_name in names(object@graphs)) {
       graph <- object@graphs[[graph_name]]
       # Only write the graphs with the correct assay.used
-      if ('assay.used' %in% slotNames(graph)) {
+      if ("assay.used" %in% slotNames(graph)) {
         if (length(graph@assay.used) > 0 && graph@assay.used == assay) {
           # Strip away modality name if the graph name starts with it:
           # RNA_distances -> distances
@@ -239,10 +251,12 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
 
 #' Write one assay to .h5ad
 #'
-#' This function writes the data of one of the assays (modalities) of a \code{Seurat} object into an .h5ad file.
+#' This function writes the data of one of the assays (modalities) of a
+#' \code{Seurat} object into an .h5ad file.
 #' The behavior of this function if NAs are present is undefined.
 #'
-#' The following slots are saved: count matrices (`@counts` and `@data`), `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
+#' The following slots are saved: count matrices (`@counts` and `@data`),
+#' `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
 #'
 #' @param object \code{Seurat} object.
 #' @param file Path to the .h5ad file.
@@ -257,7 +271,8 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
 #'   Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
 #'   Disk-backed (BPCells) matrices support \code{csr_matrix} only, as they
 #'   cannot be transposed without being rewritten in full.
-#' @param overwrite Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).
+#' @param overwrite Boolean value to indicate if to overwrite the \code{file}
+#'   if it exists (\code{TRUE} by default).
 #' @param compression Compression applied to the HDF5 datasets: \code{"gzip"}
 #'   (the default, and what previous versions always did), \code{"none"}, or an
 #'   integer gzip level between 0 and 9. Compression, not disk I/O, dominates
@@ -269,10 +284,15 @@ WriteH5ADHelper <- function(object, assay, root, sparse.type="csr_matrix", globa
 #' @import hdf5r
 #'
 #' @exportMethod WriteH5AD
-setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data=FALSE, sparse.type="csr_matrix", overwrite = TRUE, compression = "gzip") {
+setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL,
+                                          scale.data = FALSE,
+                                          sparse.type = "csr_matrix",
+                                          overwrite = TRUE,
+                                          compression = "gzip") {
   warn_scale_data_deprecated(scale.data)
   if (isFALSE(overwrite) && file.exists(file)) {
-    stop(paste0("File ", file, " already exists. Use `overwrite = TRUE` to overwrite it or choose a different file name."))
+    stop(paste0("File ", file, " already exists. Use `overwrite = TRUE` to ",
+                "overwrite it or choose a different file name."))
   }
   if (!sparse.type %in% c("csr_matrix", "csc_matrix")) {
     stop(paste0("sparse.type: ", sparse.type, " not supported. Use `csr_matrix` or `csc_matrix`. "))
@@ -321,7 +341,8 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
 #' Save \code{\link{Seurat}} object to .h5mu file.
 #' The behavior of this function if NAs are present is undefined.
 #'
-#' The following slots are saved: count matrices (`@counts` and `@data`), `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
+#' The following slots are saved: count matrices (`@counts` and `@data`),
+#' `@metadata`, `@reductions`, `@feature.loadings`, `@graphs`.
 #'
 #' @param object \code{Seurat} object.
 #' @param file Path to the .h5mu file.
@@ -335,7 +356,8 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
 #'   Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
 #'   Disk-backed (BPCells) matrices support \code{csr_matrix} only, as they
 #'   cannot be transposed without being rewritten in full.
-#' @param overwrite Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).
+#' @param overwrite Boolean value to indicate if to overwrite the \code{file}
+#'   if it exists (\code{TRUE} by default).
 #' @param compression Compression applied to the HDF5 datasets: \code{"gzip"}
 #'   (the default, and what previous versions always did), \code{"none"}, or an
 #'   integer gzip level between 0 and 9. Compression, not disk I/O, dominates
@@ -347,7 +369,10 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
 #' @import hdf5r methods
 #'
 #' @exportMethod WriteH5MU
-setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse.type="csr_matrix", overwrite=TRUE, compression = "gzip") {
+setMethod("WriteH5MU", "Seurat", function(object, file, scale.data = FALSE,
+                                          sparse.type = "csr_matrix",
+                                          overwrite = TRUE,
+                                          compression = "gzip") {
   warn_scale_data_deprecated(scale.data)
   if (!sparse.type %in% c("csr_matrix", "csc_matrix")) {
     stop(paste0("sparse.type: ", sparse.type, " not supported. Use `csr_matrix` or `csc_matrix`. "))
@@ -401,11 +426,12 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
   # that corresponds to the assay.used value
   # will be stored in .obsm slots of individual modalities:
   # RNAUMAP -> /mod/RNA/obsm/UMAP
-  if ('reductions' %in% slotNames(object)) {
+  if ("reductions" %in% slotNames(object)) {
     for (red_name in names(object@reductions)) {
       red <- object@reductions[[red_name]]
       emb <- t(red@cell.embeddings)
-      assay_emb <- red@assay.used # assay name which reduction constructed from. 'RNA', 'ADT', 'SCT' etc.
+      # assay the reduction was constructed from: 'RNA', 'ADT', 'SCT' etc.
+      assay_emb <- red@assay.used
       loadings <- red@feature.loadings
       # reduction.name => red_name , reduction.key => red@key
 
@@ -435,9 +461,9 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
         # sanitized the same way before comparing it against the key.
         if (grepl(tolower(assay_emb), tolower(red_name), fixed = TRUE) ||
             grepl(tolower(assay_emb), tolower(red@key), fixed = TRUE) ||
-            grepl(tolower(red_name), tolower(red@key), fixed = TRUE)  ||
-            grepl(tolower(gsub('[^[:alnum:]]', '', red_name)), tolower(red@key), fixed = TRUE)
-            ) {
+            grepl(tolower(red_name), tolower(red@key), fixed = TRUE) ||
+            grepl(tolower(gsub("[^[:alnum:]]", "", red_name)), tolower(red@key), fixed = TRUE)
+        ) {
           modality_specific <- TRUE
         }
 
@@ -467,13 +493,15 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
 
         if (nrow(loadings) < length(var_names_for_loadings)) {
           warning(paste0("Loadings for ", red_name, " are computed only for a some features.",
-            " For it, an array with full var dimension will be recorded as it has to be match the var dimension of the data."))
+                         " For it, an array with full var dimension will be ",
+                         "recorded as it has to be match the var dimension ",
+                         "of the data."))
           all_loadings <- matrix(
             ncol = ncol(loadings),
             nrow = length(var_names_for_loadings)
           )
           rownames(all_loadings) <- var_names_for_loadings
-          all_loadings[rownames(loadings),] <- loadings
+          all_loadings[rownames(loadings), ] <- loadings
         } else {
           all_loadings <- loadings
         }
@@ -498,19 +526,18 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
   }
 
   # graphs -> .obsp
-  if ('graphs' %in% slotNames(object)) {
+  if ("graphs" %in% slotNames(object)) {
     for (graph_name in names(object@graphs)) {
       graph <- object@graphs[[graph_name]]
 
       # Only write the graphs with no (correct) assay.used
       graph_no_assay <- FALSE
-      if (!'assay.used' %in% slotNames(graph)) {
+      if (!"assay.used" %in% slotNames(graph)) {
         graph_no_assay <- TRUE
       } else {
         if (length(graph@assay.used) < 1) {
           graph_no_assay <- TRUE
-        }
-        else if (!graph@assay.used %in% modalities) {
+        } else if (!graph@assay.used %in% modalities) {
           graph_no_assay <- TRUE
         }
       }
