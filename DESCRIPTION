@@ -20,17 +20,20 @@ Authors@R:
 Description: Save Seurat objects to h5mu files. The suggested SeuratData package
     is availabe on GitHub at <https://github.com/satijalab/seurat-data> and can
     be installed with devtools.
-Imports: hdf5r, Matrix, Seurat, methods, utils
+Imports: hdf5r, Matrix, Seurat, SeuratObject, methods, utils
 Suggests:
     rmarkdown,
     knitr,
     SeuratData,
     BiocStyle,
     testthat (>= 3.0.0),
-    fs
+    fs,
+    BPCells
 Config/Needs/website:
     r-lib/downlit
-Remotes: SeuratData=satijalab/seurat-data
+Remotes:
+    SeuratData=satijalab/seurat-data,
+    BPCells=bnprks/BPCells/r
 VignetteBuilder: knitr
 License: GPL-3
 Encoding: UTF-8

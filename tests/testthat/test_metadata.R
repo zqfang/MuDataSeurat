@@ -160,3 +160,68 @@ test_that("ReadH5MU loads global obs metadata", {
   expect_equal(unname(as.character(srt2$orig.ident)), orig)
   expect_false(any(grepl("\\.1$", colnames(srt2@meta.data))))
 })
+
+test_that("integer columns with NAs round-trip via the nullable encoding", {
+  # AnnData has no NA-in-an-integer-array encoding, so such a column is stored
+  # as a `values`/`mask` pair. Writing one used to recurse until the stack ran
+  # out: the NA-carrying vector was handed straight back to write_matrix().
+  srt <- make_srt()
+  rank <- c(1L, NA, 3L, NA, 5L, NA, 7L, 8L, NA, 10L)
+  srt$rank <- rank
+
+  file <- paste0(file_temp(), ".h5ad")
+  expect_true(WriteH5AD(srt, file))
+
+  encoding <- local({
+    h5 <- H5File$new(file, mode = "r")
+    on.exit(h5$close_all())
+    list(
+      type = h5attr(h5[["obs"]][["rank"]], "encoding-type"),
+      dtype = h5[["obs"]][["rank"]][["values"]]$get_type()$to_text()
+    )
+  })
+  expect_equal(encoding$type, "nullable-integer")
+  # The masked-out slots are filled before writing; the fill must not widen the
+  # column to a float on disk.
+  expect_match(encoding$dtype, "I(32|64)", ignore.case = TRUE)
+
+  back <- ReadH5AD(file)
+  expect_equal(unname(back$rank), rank)
+  expect_equal(unname(is.na(back$rank)), is.na(rank))
+})
+
+test_that("logical columns with NAs round-trip via the nullable encoding", {
+  srt <- make_srt()
+  flag <- c(TRUE, NA, FALSE, TRUE, NA, FALSE, TRUE, FALSE, NA, TRUE)
+  srt$flag <- flag
+
+  file <- paste0(file_temp(), ".h5ad")
+  expect_true(WriteH5AD(srt, file))
+
+  encoding <- local({
+    h5 <- H5File$new(file, mode = "r")
+    on.exit(h5$close_all())
+    h5attr(h5[["obs"]][["flag"]], "encoding-type")
+  })
+  expect_equal(encoding, "nullable-boolean")
+
+  back <- ReadH5AD(file)
+  expect_equal(unname(as.logical(back$flag)), flag)
+})
+
+test_that("logical columns are stored as a two-value boolean", {
+  srt <- make_srt()
+  srt$flag <- rep(c(TRUE, FALSE), length.out = nobs)
+
+  file <- paste0(file_temp(), ".h5ad")
+  expect_true(WriteH5AD(srt, file))
+
+  labels <- local({
+    h5 <- H5File$new(file, mode = "r")
+    on.exit(h5$close_all())
+    h5[["obs"]][["flag"]]$get_type()$get_labels()
+  })
+  # hdf5r's default logical type carries a third "NA" level, which h5py reads as
+  # uint8 rather than bool -- and anndata refuses a non-boolean nullable mask.
+  expect_equal(labels, c("FALSE", "TRUE"))
+})

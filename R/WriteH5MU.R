@@ -29,7 +29,15 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
     var.features <- mod_object@meta.data$var.features
     var.features <- var.features[!is.na(var.features)]
     var_names <- rownames(mod_object)
-    meta.features <- data.frame(row.names = var_names)
+    # A v5 assay keeps feature metadata in @meta.data, next to the bookkeeping
+    # columns VariableFeatures<- writes there. Those two are re-derived from
+    # `highly_variable` on read, so they are dropped rather than written out.
+    # Everything else is real feature metadata and was previously discarded.
+    meta.features <- mod_object[[]]
+    meta.features <- meta.features[
+      , !colnames(meta.features) %in% c("var.features", "var.features.rank"),
+      drop = FALSE
+    ]
   }else{
     # assay v4
     var.features = mod_object@var.features
@@ -265,6 +273,8 @@ WriteH5ADHelper <- function(object, assay, root, scale.data=FALSE, sparse.type="
 #' @param sparse.type String, save as csr_matrix or csc_matrix. Note that
 #'   \code{csc_matrix} requires transposing every matrix on the way out, since
 #'   Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
+#'   Disk-backed (BPCells) matrices support \code{csr_matrix} only, as they
+#'   cannot be transposed without being rewritten in full.
 #' @param overwrite Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).
 #' @param compression Compression applied to the HDF5 datasets: \code{"gzip"}
 #'   (the default, and what previous versions always did), \code{"none"}, or an
@@ -284,6 +294,7 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
   if (!sparse.type %in% c("csr_matrix", "csc_matrix")) {
     stop(paste0("sparse.type: ", sparse.type, " not supported. Use `csr_matrix` or `csc_matrix`. "))
   }
+  check_not_backing_file(object, file)
   ds_args <- resolve_compression(compression)
 
   h5 <- open_h5(file)
@@ -335,6 +346,8 @@ setMethod("WriteH5AD", "Seurat", function(object, file, assay = NULL, scale.data
 #' @param sparse.type String, save as csr_matrix or csc_matrix. Note that
 #'   \code{csc_matrix} requires transposing every matrix on the way out, since
 #'   Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
+#'   Disk-backed (BPCells) matrices support \code{csr_matrix} only, as they
+#'   cannot be transposed without being rewritten in full.
 #' @param overwrite Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).
 #' @param compression Compression applied to the HDF5 datasets: \code{"gzip"}
 #'   (the default, and what previous versions always did), \code{"none"}, or an
@@ -351,6 +364,7 @@ setMethod("WriteH5MU", "Seurat", function(object, file, scale.data=FALSE, sparse
   if (!sparse.type %in% c("csr_matrix", "csc_matrix")) {
     stop(paste0("sparse.type: ", sparse.type, " not supported. Use `csr_matrix` or `csc_matrix`. "))
   }
+  check_not_backing_file(object, file)
   ds_args <- resolve_compression(compression)
   h5 <- open_h5(file)
   # .obs

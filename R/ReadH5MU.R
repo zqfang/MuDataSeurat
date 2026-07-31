@@ -44,26 +44,23 @@ ReadH5AD <- function(file) {
     mod_path_fragments <- strsplit(path_fragments[2], "\\/")[[1]]
     assay_name <- mod_path_fragments[length(mod_path_fragments)]
   }
-  if (calcn_is_redundant(assay_name, colnames(obs))) {
+  if (skip_calcn(assay, assay_name, colnames(obs))) {
     srt <- without_calcn(Seurat::CreateSeuratObject(assay, assay = assay_name))
   } else {
     srt <- Seurat::CreateSeuratObject(assay, assay = assay_name)
   }
 
   # Specify highly variable features
-  if ("highly_variable" %in% colnames(var)) {
-    if (is.logical(var$highly_variable)) {
-      srt@assays[[1]]@var.features <- rownames(srt)[var$highly_variable]
-    }
+  if ("highly_variable" %in% colnames(var) && is.logical(var$highly_variable)) {
+    Seurat::VariableFeatures(srt[[assay_name]]) <-
+      rownames(srt[[assay_name]])[var$highly_variable]
   }
 
   # Add metadata
   srt@meta.data <- add_meta_data(srt@meta.data, obs)
 
-  # Add feature metadata
-  meta_features_names <- rownames(srt@assays[[1]]@meta.features)
-  srt@assays[[1]]@meta.features <- cbind.data.frame(var, srt@assays[[1]]@meta.features)
-  rownames(srt@assays[[1]]@meta.features) <- meta_features_names
+  # NOTE: feature metadata is attached by read_layers_to_assay(). It used to be
+  # cbind()ed on again here, which duplicated every column of /var.
 
   # Add embeddings
   for (emb in names(obsm)) {
@@ -232,7 +229,7 @@ ReadH5MU <- function(file) {
   # first modality only; assigning the remaining assays below does not.
   first_assay <- subset_cells(modalities[[1]], obs_names)
   merged_meta_columns <- c(colnames(metadata), unlist(lapply(mod_obs, colnames), use.names = FALSE))
-  if (calcn_is_redundant(names(modalities)[1], merged_meta_columns)) {
+  if (skip_calcn(first_assay, names(modalities)[1], merged_meta_columns)) {
     srt <- without_calcn(Seurat::CreateSeuratObject(first_assay, assay = names(modalities)[1]))
   } else {
     srt <- Seurat::CreateSeuratObject(first_assay, assay = names(modalities)[1])
@@ -255,13 +252,13 @@ ReadH5MU <- function(file) {
     # Append modality metadata
     srt@meta.data <- add_meta_data(srt@meta.data, mod_obs[[modality]][obs_names, , drop = FALSE])
 
-    metafeatures <- srt[[modality]]@meta.features
+    metafeatures <- srt[[modality]][[]]
 
     # Specify highly variable features
-    if ("highly_variable" %in% colnames(metafeatures)) {
-      if (is.logical(metafeatures$highly_variable)) {
-        srt[[modality]]@var.features <- rownames(metafeatures)[metafeatures$highly_variable]
-      }
+    if ("highly_variable" %in% colnames(metafeatures) &&
+        is.logical(metafeatures$highly_variable)) {
+      Seurat::VariableFeatures(srt[[modality]]) <-
+        rownames(metafeatures)[metafeatures$highly_variable]
     }
   }
 

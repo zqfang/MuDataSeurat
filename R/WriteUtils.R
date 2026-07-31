@@ -82,6 +82,16 @@ write_dataset <- function(parent, key, obj, scalar = FALSE, ds_args = list()) {
     dtype <- H5T_STRING$new(type = "c", size = Inf)
     dtype$set_cset("UTF-8")
   }
+  if (is.logical(obj)) {
+    # hdf5r's default logical type is a three-value enum (FALSE/TRUE/NA), which
+    # h5py reads as uint8 rather than bool. anndata rejects a non-boolean mask
+    # outright, so a nullable column written with the default type cannot be
+    # read back by anndata at all. Every logical reaching here is already
+    # NA-free -- write_matrix() routes the rest to the nullable encoding, whose
+    # own `values` and `mask` are NA-free by construction -- so the two-value
+    # type loses nothing and is what other readers expect.
+    dtype <- H5T_LOGICAL$new(include_NA = FALSE)
+  }
   if (scalar) {
     space <- H5S$new("scalar")
   }
@@ -127,9 +137,17 @@ write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix", d
       write_attribute(dset, "encoding-version", "0.2.0")
     } else {
       grp <- parent$create_group(key)
-      # if a charactor vector with NA, this recursion will lead to stack overflow
-      # fixed above
-      write_matrix(grp, "values", mat, ds_args = ds_args)
+      # `values` has to be written with the NAs already filled in. Passing the
+      # NA-carrying vector back to write_matrix() would land in this same branch
+      # and recurse until the stack gives out -- which is what an integer column
+      # holding NAs used to do (a character one is redirected to `factor` above,
+      # and a double one has its NAs turned into NaN). AnnData ignores whatever
+      # sits under a set mask bit, so the fill value itself is arbitrary.
+      # The fill has to carry `mat`'s own type: a bare 0 is a double and would
+      # silently widen an integer column to float64 on disk.
+      values <- mat
+      values[is.na(values)] <- as.vector(0, mode = typeof(mat))
+      write_matrix(grp, "values", values, ds_args = ds_args)
       write_matrix(grp, "mask", is.na(mat), ds_args = ds_args)
       write_attribute(grp, "encoding-type", ifelse(is.logical(mat), "nullable-boolean", "nullable-integer"))
       write_attribute(grp, "encoding-version", "0.1.0")
@@ -161,9 +179,195 @@ write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix", d
       write_dataset(grp, "indices", mat0@j, ds_args = ds_args)
       write_attribute(grp, "encoding-type", storage_sparse_type) # "csc_matrix")
     }
+  } else if (inherits(mat, "IterableMatrix")) {
+    write_iterable_matrix(parent, key, mat, storage_sparse_type, ds_args)
   } else {
     stop("Writing matrices of type ", class(mat), " is not implemented: ", key)
   }
+}
+
+# Columns (cells) materialised at a time when streaming a disk-backed matrix out
+# to HDF5. The point of a BPCells-backed assay is that the matrix never fits in
+# memory, so the block is what bounds the peak: one block of a 30k-feature assay
+# at 2k non-zeros per cell is roughly 100 MB.
+.stream_block_cols <- 4096L
+
+# Chunk length, in elements, of the extendable datasets the stream grows.
+# 65536 doubles is a 512 KB chunk, large enough that gzip has something to work
+# with and small enough not to inflate a short matrix.
+.stream_chunk_len <- 65536L
+
+# A dataset can only be extended if it is chunked, so the contiguous layout that
+# resolve_compression() picks for compression = "none" cannot be used here.
+# Keep the chunking and turn the filter off instead, which is what "none" is
+# actually asking for.
+resolve_stream_compression <- function(ds_args) {
+  if ("chunk_dims" %in% names(ds_args) && is.null(ds_args$chunk_dims)) {
+    return(list(chunk_dims = .stream_chunk_len, gzip_level = 0L))
+  }
+  c(ds_args, list(chunk_dims = .stream_chunk_len))
+}
+
+# An empty 1-D dataset of unlimited extent, to be grown by stream_append().
+#' @import hdf5r
+new_stream_dataset <- function(parent, key, dtype, ds_args) {
+  do.call(
+    parent$create_dataset,
+    c(list(key, dtype = dtype, space = H5S$new("simple", dims = 0, maxdims = Inf)), ds_args)
+  )
+}
+
+# Append to a dataset created by new_stream_dataset(). `offset` is how many
+# elements it already holds; the new length is returned so callers can thread it
+# through the next call. Offsets are carried as doubles rather than integers
+# because the non-zero count of a matrix large enough to warrant streaming can
+# exceed .Machine$integer.max.
+stream_append <- function(dset, values, offset) {
+  n <- length(values)
+  if (n == 0L) {
+    return(offset)
+  }
+  dset$set_extent(offset + n)
+  dset[(offset + 1):(offset + n)] <- values
+  offset + n
+}
+
+# Write a sparse matrix that is never held in memory in full.
+#
+# `dims` is the R-oriented (features x cells) shape and `block_fn(j1, j2)` returns
+# columns j1..j2 of it as a dgCMatrix. Only the AnnData csr_matrix layout is
+# produced: a csr_matrix is grouped by observation, a features x cells dgCMatrix
+# is grouped by cell, so a block of columns appends to the output verbatim -- the
+# same reinterpretation the in-memory path relies on, applied one block at a
+# time. A csc_matrix would be grouped by feature, which is the opposite of the
+# order a column-major source streams in.
+#
+# indptr is written as int64: unlike the in-memory path, which is bounded by what
+# a dgCMatrix can hold, the running non-zero count here can overflow int32.
+#' @import hdf5r
+write_sparse_stream <- function(parent, key, dims, block_fn, ds_args = list(),
+                                block_cols = .stream_block_cols) {
+  grp <- parent$create_group(key)
+  stream_args <- resolve_stream_compression(ds_args)
+
+  indices <- new_stream_dataset(grp, "indices", h5types$H5T_NATIVE_INT32, stream_args)
+  data <- new_stream_dataset(grp, "data", h5types$H5T_NATIVE_DOUBLE, stream_args)
+  indptr <- new_stream_dataset(grp, "indptr", h5types$H5T_NATIVE_INT64, stream_args)
+
+  n_features <- dims[1]
+  n_cells <- dims[2]
+
+  # indptr always opens with a 0 and has one entry per cell after it.
+  ptr_offset <- stream_append(indptr, 0, 0)
+  nnz <- 0
+
+  if (n_cells > 0) {
+    for (start in seq.int(1L, n_cells, by = block_cols)) {
+      end <- min(start + block_cols - 1L, n_cells)
+      block <- block_fn(start, end)
+      if (!is(block, "dgCMatrix")) {
+        block <- methods::as(block, "dgCMatrix")
+      }
+      if (nrow(block) != n_features || ncol(block) != end - start + 1L) {
+        stop("Block ", start, ":", end, " of ", key, " has dimensions ",
+             nrow(block), "x", ncol(block), ", expected ", n_features, "x",
+             end - start + 1L, ".")
+      }
+      stream_append(indices, block@i, nnz)
+      stream_append(data, block@x, nnz)
+      # block@p is cumulative within the block and opens with a 0 that the
+      # previous block already accounted for, hence [-1] and the running offset.
+      ptr_offset <- stream_append(indptr, block@p[-1] + nnz, ptr_offset)
+      nnz <- nnz + length(block@x)
+    }
+  }
+
+  write_attribute(grp, "shape", rev(dims))
+  write_attribute(grp, "encoding-type", "csr_matrix")
+  write_attribute(grp, "encoding-version", "0.1.0")
+
+  invisible(nnz)
+}
+
+# BPCells matrices are read a block of cells at a time rather than converted to
+# a dgCMatrix first, which would defeat the purpose of a disk-backed assay.
+# Lazily transformed matrices (what NormalizeData() leaves behind) work too: the
+# transform is applied as each block is pulled.
+write_iterable_matrix <- function(parent, key, mat, storage_sparse_type, ds_args) {
+  if (storage_sparse_type != "csr_matrix") {
+    stop("Writing a disk-backed matrix (", class(mat), ") requires ",
+         "sparse.type = \"csr_matrix\": ", key, ".\n",
+         "A csc_matrix is grouped by feature, the opposite of the order the ",
+         "matrix streams in, so writing one would mean rewriting the whole ",
+         "matrix with BPCells::transpose_storage_order() first.",
+         call. = FALSE)
+  }
+  write_sparse_stream(
+    parent, key, dim(mat),
+    function(j1, j2) methods::as(mat[, j1:j2, drop = FALSE], "dgCMatrix"),
+    ds_args = ds_args
+  )
+}
+
+# Collect the on-disk locations the matrices of `object` read from. A lazily
+# transformed BPCells matrix is a tree of operations whose leaves hold the
+# paths, so the whole tree has to be walked.
+matrix_backing_paths <- function(x) {
+  if (!isS4(x)) {
+    return(character())
+  }
+  paths <- character()
+  for (name in methods::slotNames(class(x))) {
+    value <- methods::slot(x, name)
+    if (name %in% c("path", "dir") && is.character(value)) {
+      paths <- c(paths, value)
+    } else if (isS4(value)) {
+      paths <- c(paths, matrix_backing_paths(value))
+    } else if (is.list(value)) {
+      paths <- c(paths, unlist(lapply(value, matrix_backing_paths), use.names = FALSE))
+    }
+  }
+  paths
+}
+
+backing_paths <- function(object) {
+  matrices <- unlist(
+    lapply(object@assays, function(assay) {
+      if (inherits(assay, "Assay5")) {
+        return(as.list(assay@layers))
+      }
+      lapply(c("counts", "data", "scale.data"), function(name) {
+        if (name %in% methods::slotNames(class(assay))) methods::slot(assay, name) else NULL
+      })
+    }),
+    recursive = FALSE, use.names = FALSE
+  )
+  matrices <- Filter(function(m) inherits(m, "IterableMatrix"), matrices)
+  if (length(matrices) == 0) {
+    return(character())
+  }
+  paths <- unique(unlist(lapply(matrices, matrix_backing_paths), use.names = FALSE))
+  normalizePath(paths, mustWork = FALSE)
+}
+
+# A disk-backed matrix keeps reading from its source for as long as the object
+# is alive, and BPCells opens that source read-write whenever the file
+# permissions allow it. Writing the object back over its own source would
+# therefore either fail on an HDF5 lock or truncate the data mid-stream, and
+# since overwrite = TRUE is the default it is easy to ask for by accident.
+check_not_backing_file <- function(object, file) {
+  sources <- backing_paths(object)
+  if (length(sources) == 0) {
+    return(invisible(NULL))
+  }
+  target <- normalizePath(file, mustWork = FALSE)
+  if (target %in% sources) {
+    stop("Cannot write to ", file, ": a disk-backed matrix in this object reads ",
+         "from that same location, and writing it would destroy the data being ",
+         "read.\nWrite to a different file, or bring the matrices into memory ",
+         "first.", call. = FALSE)
+  }
+  invisible(NULL)
 }
 
 # HDF5 treats "/" as a path separator, so it cannot appear in an object name.

@@ -36,7 +36,9 @@ WriteH5AD(
 
 \item{sparse.type}{String, save as csr_matrix or csc_matrix. Note that
 \code{csc_matrix} requires transposing every matrix on the way out, since
-Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.}
+Seurat stores them column-oriented; \code{csr_matrix} writes them as-is.
+Disk-backed (BPCells) matrices support \code{csr_matrix} only, as they
+cannot be transposed without being rewritten in full.}
 
 \item{overwrite}{Boolean value to indicate if to overwrite the \code{file} if it exists (\code{TRUE} by default).}
 

@@ -15,16 +15,24 @@ add_meta_data <- function(meta_data, new_meta) {
 }
 
 # CreateSeuratObject() recomputes nCount_<assay>/nFeature_<assay> from the
-# matrix. That costs a full pass over X plus a second sparse allocation for the
-# `x > 0` term, which on large objects dominates the time spent reading a file.
-# When the stored metadata already carries those columns they are the
-# authoritative values and add_meta_data() overwrites the recomputed ones
-# anyway, so the computation is pure waste. When they are absent it is not
-# waste: skipping it would silently drop them from the resulting object.
+# assay's counts layer. That costs a full pass over the matrix plus a second
+# sparse allocation for the `x > 0` term, which on large objects dominates the
+# time spent reading a file. Skip it when it would be wasted or impossible:
+#
+#   - The stored metadata already carries both columns. Those are the
+#     authoritative values and add_meta_data() overwrites the recomputed ones
+#     anyway, so computing them achieves nothing. When they are absent it is not
+#     waste: skipping would silently drop them from the resulting object.
+#   - The assay has no counts layer, which is the case whenever X maps to data
+#     or scale.data. Seurat cannot compute the columns from anything else and
+#     emits two warnings on its way to not computing them.
 #
 # `provided` are the column names of every metadata table that will be merged
 # into the object's meta.data.
-calcn_is_redundant <- function(assay_name, provided) {
+skip_calcn <- function(assay, assay_name, provided) {
+  if (!"counts" %in% SeuratObject::Layers(assay)) {
+    return(TRUE)
+  }
   all(paste0(c("nCount_", "nFeature_"), assay_name) %in% provided)
 }
 
@@ -124,20 +132,24 @@ decode_categorical <- function(codes, categories) {
 
 read_column <- function(column, etype, eversion) {
   values <- NULL
-  if (etype == "categorical") {
-    if (eversion == "0.2.0") {
+  if (identical(etype, "categorical")) {
+    if (identical(eversion, "0.2.0")) {
       codes <- column[["codes"]]$read()
       categories <- column[["categories"]]$read()
       values <- decode_categorical(codes, categories)
     } else {
       warning(paste0("Cannot recognise encoding-version ", eversion))
     }
+  } else if (identical(etype, "nullable-integer") ||
+             identical(etype, "nullable-boolean")) {
+    # AnnData's nullable encodings store the data and a missing-value mask as
+    # two datasets in a group. Whatever sits under a set mask bit is padding the
+    # writer chose, so it has to be restored to NA rather than read as a value.
+    values <- column[["values"]]$read()
+    values[as.logical(column[["mask"]]$read())] <- NA
   } else {
     values <- column$read()
   }
-  # } else {
-  #   stop(paste0("Cannot recognise encoving-type ", etype))
-  # }
   values
 }
 
@@ -346,30 +358,39 @@ read_layers_to_assay <- function(root, modalityname="", obs = NULL, var = NULL) 
   #   2. raw & X -> data & scale.data
   #   3. layers['counts'] & X -> counts & data
   #   4. layers['counts'], raw, X -> counts, data, scale.data
+  #
+  # These become v5 layers of the same name. A v5 assay names its layers freely,
+  # so the mapping no longer has to route matrices into three fixed slots the way
+  # the v3 Assay class required.
   counts_as_layer <- !is.null(layers) && "counts" %in% names(layers)
   if (!counts_as_layer && is.null(raw)) {
     # 1
-    assay <- Seurat::CreateAssayObject(counts = X)
+    assay <- SeuratObject::CreateAssay5Object(counts = X)
   } else {
     if (!is.null(raw)) {
       if (counts_as_layer) {
         # 4
-        assay <- Seurat::CreateAssayObject(counts = layers[['counts']])
-        assay@data <- raw.X
-        assay@scale.data <- X
+        assay <- SeuratObject::CreateAssay5Object(counts = layers[['counts']])
+        SeuratObject::LayerData(assay, "data") <- raw.X
+        SeuratObject::LayerData(assay, "scale.data") <- X
       } else {
         # 2
-        assay <- Seurat::CreateAssayObject(data = raw.X)
-        assay@scale.data <- X
+        assay <- SeuratObject::CreateAssay5Object(data = raw.X)
+        SeuratObject::LayerData(assay, "scale.data") <- X
       }
     } else {
       # 3
-      assay <- Seurat::CreateAssayObject(counts = layers[['counts']])
-      assay@data <- X
+      assay <- SeuratObject::CreateAssay5Object(counts = layers[['counts']])
+      SeuratObject::LayerData(assay, "data") <- X
     }
   }
 
-  assay@meta.features <- var
+  # A v5 assay keeps feature metadata in @meta.data rather than the v3
+  # @meta.features slot, and [[<- matches it to the assay's features by name.
+  # Assigning a frame with no columns is rejected, hence the guard.
+  if (ncol(var) > 0) {
+    assay[[]] <- var
+  }
 
   assay
 }
