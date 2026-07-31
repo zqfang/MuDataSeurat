@@ -53,10 +53,7 @@ ReadH5AD <- function(file) {
   }
 
   # Add metadata
-  meta_data_names <- rownames(srt@meta.data)
-  srt@meta.data <- cbind.data.frame(srt@meta.data, obs)
-  colnames(srt@meta.data) = make.unique(colnames(srt@meta.data))
-  rownames(srt@meta.data) <- meta_data_names
+  srt@meta.data <- add_meta_data(srt@meta.data, obs)
 
   # Add feature metadata
   meta_features_names <- rownames(srt@assays[[1]]@meta.features)
@@ -224,11 +221,18 @@ ReadH5MU <- function(file) {
     srt[[modality]] <- subset(modalities[[modality]], cells = obs_names)
   }
 
+  # Global /obs is where a Seurat object's meta.data is written, so it has to be
+  # attached; previously it was read and then discarded, losing all of it.
+  if (ncol(metadata) > 0 && all(obs_names %in% rownames(metadata))) {
+    srt@meta.data <- add_meta_data(srt@meta.data, metadata[obs_names, , drop = FALSE])
+  } else if (ncol(metadata) > 0) {
+    warning("Global /obs could not be matched to the observation names and was not loaded.")
+  }
+
   # Metadata, features metadata, and variable features
   for (modality in names(modalities)) {
     # Append modality metadata
-    srt@meta.data <- cbind.data.frame(srt@meta.data, mod_obs[[modality]][obs_names,])
-    colnames(srt@meta.data) = make.unique(colnames(srt@meta.data))
+    srt@meta.data <- add_meta_data(srt@meta.data, mod_obs[[modality]][obs_names, , drop = FALSE])
 
     metafeatures <- srt[[modality]]@meta.features
 

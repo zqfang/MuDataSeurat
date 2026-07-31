@@ -132,6 +132,29 @@ write_matrix <- function(parent, key, mat, storage_sparse_type = "csr_matrix") {
   }
 }
 
+# HDF5 treats "/" as a path separator, so it cannot appear in an object name.
+# Columns carrying it (e.g. "Count (cells/ul)") are renamed; names that are
+# already legal are left untouched, and a rename that would collide with
+# another column gets a numeric suffix.
+sanitize_h5_names <- function(names) {
+  dirty <- grepl("/", names, fixed = TRUE)
+  if (!any(dirty)) {
+    return(names)
+  }
+  out <- names
+  for (i in which(dirty)) {
+    base <- gsub("/", "_", names[i], fixed = TRUE)
+    candidate <- base
+    suffix <- 1L
+    while (candidate %in% out[-i]) {
+      candidate <- paste0(base, ".", suffix)
+      suffix <- suffix + 1L
+    }
+    out[i] <- candidate
+  }
+  out
+}
+
 write_data_frame <- function(parent, key, attr_df) {
   grp <- parent$create_group(key)
   if (!is.data.frame(attr_df)) { # row names only. Creating a data.frame with duplicated row.names is not possible
@@ -143,24 +166,39 @@ write_data_frame <- function(parent, key, attr_df) {
   }
 
 
-  for (col in colnames(attr_df)) {
+  # The dataset name and the matching entry in "column-order" have to be derived
+  # from the same sanitized name. Renaming only the dataset leaves readers that
+  # iterate over column-order (anndata, mudata) unable to open the file at all.
+  df_columns <- colnames(attr_df)
+  h5_columns <- sanitize_h5_names(df_columns)
+  renamed <- h5_columns != df_columns
+  if (any(renamed)) {
+    warning(
+      "HDF5 does not allow '/' in names, renaming column(s): ",
+      paste0(df_columns[renamed], " -> ", h5_columns[renamed], collapse = ", ")
+    )
+  }
+  attr_columns <- h5_columns[match(attr_columns, df_columns)]
+
+  for (i in seq_along(df_columns)) {
+    col <- df_columns[i]
+    h5_col <- h5_columns[i]
+
     # Check if the column is of (Date, POSIXct/POSIXt)
-    if (inherits(attr_df[[col]], "Date") ||
-      inherits(attr_df[[col]], "POSIXct") ||
-      inherits(attr_df[[col]], "POSIXt")) {
+    if (inherits(attr_df[[i]], "Date") ||
+      inherits(attr_df[[i]], "POSIXct") ||
+      inherits(attr_df[[i]], "POSIXt")) {
       message("Column ", col, " is of datetime type.")
-      attr_df[[col]] <- as.character(attr_df[[col]])
+      attr_df[[i]] <- as.character(attr_df[[i]])
     }
 
     # debug: skip column with all values are NA, it's not allow
-    if (all(is.na(attr_df[[col]]))) {
-      attr_columns <- attr_columns[attr_columns != col] # remove from column-order
+    if (all(is.na(attr_df[[i]]))) {
+      attr_columns <- attr_columns[attr_columns != h5_col] # remove from column-order
       warning("Skip meta.data column: ", col, ", because of all values are NA.")
       next
     }
-    # debug: remove "/" in key, it's not allow
-    col2 <- gsub("/", "", col)
-    write_matrix(grp, col2, attr_df[[col]])
+    write_matrix(grp, h5_col, attr_df[[i]])
   }
 
   # Write attributes

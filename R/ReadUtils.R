@@ -1,3 +1,19 @@
+# Merge metadata read from the file into the meta.data that CreateSeuratObject
+# generated. Columns the file provides replace the generated ones instead of
+# being appended next to them: CreateSeuratObject recomputes nCount_*/nFeature_*
+# from X, which may hold normalised values rather than raw counts, and defaults
+# orig.ident to "SeuratProject", so the stored values are the authoritative ones.
+add_meta_data <- function(meta_data, new_meta) {
+  if (is.null(new_meta) || ncol(new_meta) == 0) {
+    return(meta_data)
+  }
+  kept <- !colnames(meta_data) %in% colnames(new_meta)
+  merged <- cbind.data.frame(meta_data[, kept, drop = FALSE], new_meta)
+  colnames(merged) <- make.unique(colnames(merged))
+  rownames(merged) <- rownames(meta_data)
+  merged
+}
+
 #' @importFrom hdf5r is_hdf5 H5File
 open_and_check_mudata <- function(filename) {
     if (readChar(filename, 6) != "MuData") {
